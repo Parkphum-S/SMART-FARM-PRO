@@ -44,4 +44,5 @@ topic read farm/farm_001/esp32/+/status
 topic read farm/farm_001/zone/+/sensor/+/reading
 topic read farm/farm_001/zone/+/actuator/+/state
 topic read farm/farm_001/zone/+/actuator/+/ack
+topic read farm/farm_001/zone/+/actuator/+/command
 topic write farm/farm_001/zone/+/actuator/+/command
