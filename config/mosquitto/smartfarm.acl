@@ -1,0 +1,47 @@
+# SMART FARM MQTT ACL
+# Phase 4 baseline ACL
+
+# Backend service
+user smartfarm_backend
+topic readwrite farm/#
+
+# ESP32_001
+user esp32_001
+
+# ESP32 publishes its own status
+topic write farm/farm_001/esp32/esp32_001/status
+topic write farm/farm_001/esp32/esp32_001/telemetry
+
+# ESP32_001 permissions for Zone 01 Actuators
+topic write farm/farm_001/zone/zone_01/actuator/+/state
+topic write farm/farm_001/zone/zone_01/actuator/+/ack
+topic read farm/farm_001/zone/zone_01/actuator/+/command
+
+# Zone 01 sensor and actuator state/ack
+topic write farm/farm_001/zone/zone_01/sensor/+/reading
+topic write farm/farm_001/zone/zone_01/actuator/+/state
+topic write farm/farm_001/zone/zone_01/actuator/+/ack
+
+# ESP32 receives actuator commands for Zone 01
+topic read farm/farm_001/zone/zone_01/actuator/+/command
+
+topic read farm/farm_001/zone/zone_03/actuator/+/command
+topic write farm/farm_001/zone/zone_03/actuator/+/state
+topic write farm/farm_001/zone/zone_03/actuator/+/command/ack
+# Explicitly deny system status
+topic deny farm/farm_001/system/status
+
+# เพิ่มสิทธิ์ให้ esp32_001 ส่ง Sensor Reading ของ Zone 03 (DHT11) ได้
+topic write farm/farm_001/zone/zone_03/sensor/+/reading
+
+# ESP32-CAM 001
+user smartfarm-esp32-cam-001
+topic write farm/farm_001/esp32/smartfarm-esp32-cam-001/status
+
+# Smart Farm Gateway
+user smartfarm_gateway
+topic read farm/farm_001/esp32/+/status
+topic read farm/farm_001/zone/+/sensor/+/reading
+topic read farm/farm_001/zone/+/actuator/+/state
+topic read farm/farm_001/zone/+/actuator/+/ack
+topic write farm/farm_001/zone/+/actuator/+/command
