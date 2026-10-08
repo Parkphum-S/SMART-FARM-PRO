@@ -228,3 +228,27 @@ def test_get_user_for_auth_returns_none_when_not_found():
 
     assert result is None
     cursor.execute.assert_called_once()
+
+def test_get_user_permissions_returns_permission_names():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = [
+            ("sensor.read",),
+            ("actuator.control",),
+        ]
+
+        result = persistence.get_user_permissions(7)
+
+    assert result == {"sensor.read", "actuator.control"}
+    cursor.execute.assert_called_once()
+
+
+def test_get_user_permissions_returns_empty_set():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = []
+
+        result = persistence.get_user_permissions(999)
+
+    assert result == set()
+    cursor.execute.assert_called_once()

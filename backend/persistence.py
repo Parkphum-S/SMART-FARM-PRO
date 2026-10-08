@@ -181,6 +181,25 @@ def get_user_for_auth(identifier: str) -> dict[str, object] | None:
     }
 
 
+
+def get_user_permissions(user_id: int) -> set[str]:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT p.name
+                FROM user_roles AS ur
+                JOIN role_permissions AS rp ON rp.role_id = ur.role_id
+                JOIN permissions AS p ON p.id = rp.permission_id
+                WHERE ur.user_id = %s
+                """,
+                (user_id,),
+            )
+            rows = cur.fetchall()
+
+    return {row[0] for row in rows}
+
+
 def get_farm_settings(
     farm_id: int,
 ) -> dict[str, object] | None:
