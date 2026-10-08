@@ -22,3 +22,9 @@ The firmware must publish `device_id`, `status`, and `timestamp` on the ESP32 st
 The firmware must publish `actuator_id`, `state`, and `timestamp` on the actuator state topic.
 
 `device_health` may remain as an additional field, but it does not replace `state` or `timestamp`.
+
+## Repository State
+
+- No firmware source (`.ino`, `platformio.ini`, C/C++ firmware files) is present in the current repository.
+- The remote repository currently exposes only the `develop` branch.
+- No real sensor reading payload has been observed from MQTT yet.
