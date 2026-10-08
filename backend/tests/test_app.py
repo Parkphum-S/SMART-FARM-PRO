@@ -40,6 +40,8 @@ def test_send_actuator_command():
         with patch(
             "dependencies.persistence.get_user_permissions",
             return_value={"actuator.control"},
+        ), patch("app.persistence.resolve_actuator_id", return_value=11), patch(
+            "app.persistence.insert_actuator_command", return_value=123
         ), patch("app.mqtt_client.publish") as publish, TestClient(app) as client:
             response = client.post(
                 "/api/v1/actuators/pump_001/command",
@@ -211,6 +213,8 @@ def test_send_actuator_command_allows_permission():
         with patch(
             "dependencies.persistence.get_user_permissions",
             return_value={"actuator.control"},
+        ), patch("app.persistence.resolve_actuator_id", return_value=11), patch(
+            "app.persistence.insert_actuator_command", return_value=123
         ), patch("app.mqtt_client.publish") as publish, TestClient(app) as client:
             response = client.post(
                 "/api/v1/actuators/pump_001/command",
@@ -229,3 +233,59 @@ def test_send_actuator_command_allows_permission():
         "request_id": "req-api-004",
     }
     publish.assert_called_once()
+
+def test_send_actuator_command_persists_before_publish():
+    from app import app
+
+    user = {
+        "id": 7,
+        "username": "operator",
+        "email": "operator@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    events = []
+
+    app.dependency_overrides = {
+        dependencies.get_current_user: lambda: user,
+    }
+
+    try:
+        with patch(
+            "dependencies.persistence.get_user_permissions",
+            return_value={"actuator.control"},
+        ), patch(
+            "persistence.resolve_actuator_id",
+            return_value=11,
+        ), patch(
+            "persistence.insert_actuator_command",
+            side_effect=lambda **kwargs: events.append(("persist", kwargs)) or 123,
+        ), patch(
+            "app.mqtt_client.publish",
+            side_effect=lambda topic, payload: events.append(("publish", topic, payload)),
+        ), TestClient(app) as client:
+            response = client.post(
+                "/api/v1/actuators/pump_001/command",
+                json={
+                    "command": "on",
+                    "request_id": "req-api-persist-001",
+                    "timestamp": "2026-10-09T00:00:00Z",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert [event[0] for event in events] == ["persist", "publish"]
+    assert events[0][1] == {
+        "actuator_id": 11,
+        "command": "on",
+        "request_id": "req-api-persist-001",
+        "requested_at": "2026-10-09T00:00:00Z",
+        "raw_payload": {
+            "actuator_id": "pump_001",
+            "command": "on",
+            "request_id": "req-api-persist-001",
+            "timestamp": "2026-10-09T00:00:00Z",
+        },
+    }

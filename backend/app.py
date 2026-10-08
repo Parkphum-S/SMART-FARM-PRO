@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 import dependencies
 import mqtt_client
+import persistence
 import state_store
 
 
@@ -76,6 +77,28 @@ def send_actuator_command(
         "request_id": body.request_id,
         "timestamp": body.timestamp,
     }
+    resolved_actuator_id = persistence.resolve_actuator_id(
+        "farm_001",
+        "zone_01",
+        actuator_id,
+    )
+    if resolved_actuator_id is None:
+        raise HTTPException(status_code=404, detail="Actuator not found")
+
+    try:
+        persistence.insert_actuator_command(
+            actuator_id=resolved_actuator_id,
+            command=body.command,
+            request_id=body.request_id,
+            requested_at=body.timestamp,
+            raw_payload=payload,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to record actuator command",
+        ) from exc
+
     mqtt_client.publish(topic, payload)
     return {"status": "accepted", "request_id": body.request_id}
 
