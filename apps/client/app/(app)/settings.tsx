@@ -1,0 +1,5 @@
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { currentUser } from "@/config/session";
+export default function SettingsScreen(){return <SafeAreaView style={styles.safe}><View style={styles.container}><Text style={styles.title}>Settings</Text><Text style={styles.body}>Current shell role: {currentUser.role}</Text><Text style={styles.note}>Authorization must be enforced by the backend when authentication is connected.</Text></View></SafeAreaView>}
+const styles=StyleSheet.create({safe:{flex:1,backgroundColor:"#F6F8F5"},container:{width:"100%",maxWidth:1180,alignSelf:"center",padding:24,gap:12},title:{fontSize:30,fontWeight:"800",color:"#172119"},body:{fontSize:15,color:"#4F5D52"},note:{fontSize:13,lineHeight:19,color:"#7A847C"}});
