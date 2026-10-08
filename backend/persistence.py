@@ -155,6 +155,32 @@ def resolve_sensor_id(
 
     return row[0] if row else None
 
+def get_user_for_auth(identifier: str) -> dict[str, object] | None:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, username, email, password_hash, is_active
+                FROM users
+                WHERE is_active = true
+                  AND (username = %s OR email = %s)
+                """,
+                (identifier, identifier),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row[0],
+        "username": row[1],
+        "email": row[2],
+        "password_hash": row[3],
+        "is_active": row[4],
+    }
+
+
 def get_farm_settings(
     farm_id: int,
 ) -> dict[str, object] | None:

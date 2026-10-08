@@ -194,3 +194,37 @@ def test_upsert_farm_settings():
 
     assert "ON CONFLICT (farm_id)" in query
     assert params == (1, 13.7563, 100.5018, "auto")
+
+
+def test_get_user_for_auth_returns_active_user():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = (
+            7,
+            "admin",
+            "admin@example.com",
+            "hashed-password",
+            True,
+        )
+
+        result = persistence.get_user_for_auth("admin")
+
+    assert result == {
+        "id": 7,
+        "username": "admin",
+        "email": "admin@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    cursor.execute.assert_called_once()
+
+
+def test_get_user_for_auth_returns_none_when_not_found():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = None
+
+        result = persistence.get_user_for_auth("missing-user")
+
+    assert result is None
+    cursor.execute.assert_called_once()
