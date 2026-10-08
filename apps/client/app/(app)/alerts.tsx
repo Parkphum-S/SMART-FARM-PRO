@@ -1,0 +1,4 @@
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+export default function AlertsScreen(){return <SafeAreaView style={styles.safe}><View style={styles.container}><Text style={styles.title}>Alerts</Text><Text style={styles.body}>Alert center shell. No MQTT or backend dependency is introduced here.</Text></View></SafeAreaView>}
+const styles=StyleSheet.create({safe:{flex:1,backgroundColor:"#F6F8F5"},container:{width:"100%",maxWidth:1180,alignSelf:"center",padding:24,gap:10},title:{fontSize:30,fontWeight:"800",color:"#172119"},body:{fontSize:15,color:"#68766B"}});
