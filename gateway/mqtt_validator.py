@@ -36,3 +36,26 @@ def validate_sensor_reading(payload: dict) -> bool:
         return False
 
     return True
+
+
+def validate_esp32_status(payload: dict) -> bool:
+    if not isinstance(payload, dict):
+        return False
+
+    required = {"device_id", "status", "timestamp"}
+    if not required.issubset(payload):
+        return False
+
+    if not isinstance(payload["device_id"], str) or not payload["device_id"]:
+        return False
+    if payload["status"] not in {"online", "offline"}:
+        return False
+    if not isinstance(payload["timestamp"], str):
+        return False
+
+    try:
+        datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    return True

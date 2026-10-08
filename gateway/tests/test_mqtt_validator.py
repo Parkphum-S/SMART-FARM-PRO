@@ -1,6 +1,6 @@
 import unittest
 
-from mqtt_validator import validate_sensor_reading
+from mqtt_validator import validate_esp32_status, validate_sensor_reading
 
 
 class TestSensorReadingValidation(unittest.TestCase):
@@ -27,6 +27,30 @@ class TestSensorReadingValidation(unittest.TestCase):
     def test_invalid_timestamp(self):
         payload = {**self.valid_payload, "timestamp": "not-a-timestamp"}
         self.assertFalse(validate_sensor_reading(payload))
+
+
+class TestEsp32StatusValidation(unittest.TestCase):
+    def setUp(self):
+        self.valid_payload = {
+            "device_id": "esp32_001",
+            "status": "online",
+            "timestamp": "2026-10-08T00:00:00Z",
+        }
+
+    def test_valid_esp32_status(self):
+        self.assertTrue(validate_esp32_status(self.valid_payload))
+
+    def test_missing_timestamp(self):
+        payload = {key: value for key, value in self.valid_payload.items() if key != "timestamp"}
+        self.assertFalse(validate_esp32_status(payload))
+
+    def test_invalid_status(self):
+        payload = {**self.valid_payload, "status": "unknown"}
+        self.assertFalse(validate_esp32_status(payload))
+
+    def test_invalid_timestamp(self):
+        payload = {**self.valid_payload, "timestamp": "not-a-timestamp"}
+        self.assertFalse(validate_esp32_status(payload))
 
 
 if __name__ == "__main__":
