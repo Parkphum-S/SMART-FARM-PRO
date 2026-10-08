@@ -109,3 +109,29 @@ def validate_actuator_ack(payload: dict) -> bool:
         return False
 
     return True
+
+
+
+def validate_actuator_command(payload: dict) -> bool:
+    if not isinstance(payload, dict):
+        return False
+
+    required = {"actuator_id", "command", "request_id", "timestamp"}
+    if not required.issubset(payload):
+        return False
+
+    if not isinstance(payload["actuator_id"], str) or not payload["actuator_id"]:
+        return False
+    if payload["command"] not in {"on", "off"}:
+        return False
+    if not isinstance(payload["request_id"], str) or not payload["request_id"]:
+        return False
+    if not isinstance(payload["timestamp"], str):
+        return False
+
+    try:
+        datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    return True

@@ -1,6 +1,6 @@
 import unittest
 
-from mqtt_validator import validate_actuator_ack, validate_actuator_state, validate_esp32_status, validate_sensor_reading
+from mqtt_validator import validate_actuator_ack, validate_actuator_command, validate_actuator_state, validate_esp32_status, validate_sensor_reading
 
 
 class TestSensorReadingValidation(unittest.TestCase):
@@ -101,6 +101,32 @@ class TestActuatorAckValidation(unittest.TestCase):
     def test_invalid_timestamp(self):
         payload = {**self.valid_payload, "timestamp": "not-a-timestamp"}
         self.assertFalse(validate_actuator_ack(payload))
+
+
+
+class TestActuatorCommandValidation(unittest.TestCase):
+    def setUp(self):
+        self.valid_payload = {
+            "actuator_id": "pump_001",
+            "command": "on",
+            "request_id": "req-001",
+            "timestamp": "2026-10-08T00:00:00Z",
+        }
+
+    def test_valid_actuator_command(self):
+        self.assertTrue(validate_actuator_command(self.valid_payload))
+
+    def test_missing_request_id(self):
+        payload = {key: value for key, value in self.valid_payload.items() if key != "request_id"}
+        self.assertFalse(validate_actuator_command(payload))
+
+    def test_invalid_command(self):
+        payload = {**self.valid_payload, "command": "unknown"}
+        self.assertFalse(validate_actuator_command(payload))
+
+    def test_invalid_timestamp(self):
+        payload = {**self.valid_payload, "timestamp": "not-a-timestamp"}
+        self.assertFalse(validate_actuator_command(payload))
 
 
 if __name__ == "__main__":
