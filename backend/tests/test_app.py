@@ -28,3 +28,18 @@ def test_send_actuator_command():
         assert response.status_code == 200
         assert response.json() == {"status": "accepted", "request_id": "req-api-001"}
         publish.assert_called_once_with("farm/farm_001/zone/zone_01/actuator/pump_001/command", {"actuator_id": "pump_001", "command": "on", "request_id": "req-api-001", "timestamp": "2026-10-08T00:00:00Z"})
+
+def test_get_latest_farm_data():
+    from app import app
+    with patch("app.state_store.get_esp32_status", return_value={"esp32_001": {"status": "online"}}), patch("app.state_store.get_sensor_readings", return_value={"dht11_001": {"temperature_c": 28.5}}), patch("app.state_store.get_actuator_states", return_value={"pump_001": {"state": "on"}}):
+        with TestClient(app) as client:
+            esp32_response = client.get("/api/v1/esp32/status")
+            sensor_response = client.get("/api/v1/sensors/readings")
+            actuator_response = client.get("/api/v1/actuators/states")
+
+    assert esp32_response.status_code == 200
+    assert esp32_response.json() == {"data": {"esp32_001": {"status": "online"}}}
+    assert sensor_response.status_code == 200
+    assert sensor_response.json() == {"data": {"dht11_001": {"temperature_c": 28.5}}}
+    assert actuator_response.status_code == 200
+    assert actuator_response.json() == {"data": {"pump_001": {"state": "on"}}}
