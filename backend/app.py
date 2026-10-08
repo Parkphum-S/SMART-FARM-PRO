@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
+import dependencies
 import mqtt_client
 import state_store
 
@@ -61,7 +62,13 @@ class ActuatorCommand(BaseModel):
 
 
 @app.post("/api/v1/actuators/{actuator_id}/command")
-def send_actuator_command(actuator_id: str, body: ActuatorCommand):
+def send_actuator_command(
+    actuator_id: str,
+    body: ActuatorCommand,
+    _: dict[str, object] = Depends(
+        dependencies.require_permission("actuator.control")
+    ),
+):
     topic = f"farm/farm_001/zone/zone_01/actuator/{actuator_id}/command"
     payload = {
         "actuator_id": actuator_id,
