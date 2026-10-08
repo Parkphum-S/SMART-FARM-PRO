@@ -4,6 +4,7 @@ import paho.mqtt.client as mqtt
 
 from mqtt_config import MQTT_HOST, MQTT_PASSWORD, MQTT_PORT, MQTT_USERNAME
 import state_store
+import persistence
 
 
 client = mqtt.Client(
@@ -26,6 +27,24 @@ def on_message(client, userdata, msg) -> None:
     elif len(parts) == 7 and parts[2] == "zone" and parts[4] == "sensor" and parts[6] == "reading":
         sensor_id = payload.get("sensor_id")
         if sensor_id:
+            farm_code = parts[1]
+            zone_code = parts[3]
+            resolved_sensor_id = persistence.resolve_sensor_id(
+                farm_code,
+                zone_code,
+                sensor_id,
+            )
+
+            if resolved_sensor_id is not None:
+                persistence.insert_sensor_reading(
+                    sensor_id=resolved_sensor_id,
+                    recorded_at=payload.get("timestamp"),
+                    temperature_c=payload.get("temperature_c"),
+                    humidity_pct=payload.get("humidity_pct"),
+                    value=payload.get("value"),
+                    raw_payload=payload,
+                )
+
             state_store.set_sensor_reading(sensor_id, payload)
     elif len(parts) == 7 and parts[2] == "zone" and parts[4] == "actuator" and parts[6] == "state":
         actuator_id = payload.get("actuator_id")
