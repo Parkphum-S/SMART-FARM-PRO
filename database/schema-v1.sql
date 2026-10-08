@@ -299,6 +299,30 @@ ALTER SEQUENCE app.farms_id_seq OWNED BY app.farms.id;
 -- Name: permissions; Type: TABLE; Schema: app; Owner: -
 --
 
+CREATE TABLE app.farm_settings (
+    farm_id bigint NOT NULL,
+    latitude double precision,
+    longitude double precision,
+    location_source text DEFAULT 'auto' NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT farm_settings_pkey PRIMARY KEY (farm_id),
+    CONSTRAINT farm_settings_farm_id_fkey
+        FOREIGN KEY (farm_id) REFERENCES app.farms(id) ON DELETE CASCADE,
+    CONSTRAINT farm_settings_latitude_check
+        CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90),
+    CONSTRAINT farm_settings_longitude_check
+        CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180),
+    CONSTRAINT farm_settings_location_source_check
+        CHECK (location_source IN ('auto', 'map', 'manual')),
+    CONSTRAINT farm_settings_location_pair_check
+        CHECK (
+            (latitude IS NULL AND longitude IS NULL)
+            OR (latitude IS NOT NULL AND longitude IS NOT NULL)
+        )
+);
+
+
 CREATE TABLE app.permissions (
     id bigint NOT NULL,
     name text NOT NULL,

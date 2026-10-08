@@ -153,3 +153,44 @@ def test_insert_actuator_state_returns_id():
 
     assert result == 99
     fake_cursor.execute.assert_called_once()
+
+def test_get_farm_settings():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = (1, 13.7563, 100.5018, "auto")
+
+        result = persistence.get_farm_settings(1)
+
+    assert result == {
+        "farm_id": 1,
+        "latitude": 13.7563,
+        "longitude": 100.5018,
+        "location_source": "auto",
+    }
+
+
+def test_get_farm_settings_returns_none():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = None
+
+        result = persistence.get_farm_settings(999)
+
+    assert result is None
+
+
+def test_upsert_farm_settings():
+    with patch("persistence.db.connect") as connect:
+        persistence.upsert_farm_settings(
+            farm_id=1,
+            latitude=13.7563,
+            longitude=100.5018,
+            location_source="auto",
+        )
+
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        query = cursor.execute.call_args.args[0]
+        params = cursor.execute.call_args.args[1]
+
+    assert "ON CONFLICT (farm_id)" in query
+    assert params == (1, 13.7563, 100.5018, "auto")

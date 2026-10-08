@@ -154,3 +154,62 @@ def resolve_sensor_id(
             row = cur.fetchone()
 
     return row[0] if row else None
+
+def get_farm_settings(
+    farm_id: int,
+) -> dict[str, object] | None:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT farm_id, latitude, longitude, location_source
+                FROM farm_settings
+                WHERE farm_id = %s
+                """,
+                (farm_id,),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "farm_id": row[0],
+        "latitude": row[1],
+        "longitude": row[2],
+        "location_source": row[3],
+    }
+
+
+def upsert_farm_settings(
+    farm_id: int,
+    latitude: float | None,
+    longitude: float | None,
+    location_source: str = "auto",
+) -> None:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO farm_settings (
+                    farm_id,
+                    latitude,
+                    longitude,
+                    location_source,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, now())
+                ON CONFLICT (farm_id)
+                DO UPDATE SET
+                    latitude = EXCLUDED.latitude,
+                    longitude = EXCLUDED.longitude,
+                    location_source = EXCLUDED.location_source,
+                    updated_at = now()
+                """,
+                (
+                    farm_id,
+                    latitude,
+                    longitude,
+                    location_source,
+                ),
+            )
