@@ -54,3 +54,55 @@ def test_resolve_sensor_id_returns_none_when_not_found():
 
     assert result is None
     fake_cursor.execute.assert_called_once()
+
+
+def test_resolve_device_id_returns_id():
+    fake_connection = MagicMock()
+    fake_cursor = fake_connection.__enter__.return_value.cursor.return_value.__enter__.return_value
+    fake_cursor.fetchone.return_value = (7,)
+
+    with patch("persistence.db.connect", return_value=fake_connection):
+        result = persistence.resolve_device_id(
+            farm_code="farm_001",
+            device_code="esp32_001",
+        )
+
+    assert result == 7
+    fake_cursor.execute.assert_called_once()
+
+
+def test_resolve_device_id_returns_none_when_not_found():
+    fake_connection = MagicMock()
+    fake_cursor = fake_connection.__enter__.return_value.cursor.return_value.__enter__.return_value
+    fake_cursor.fetchone.return_value = None
+
+    with patch("persistence.db.connect", return_value=fake_connection):
+        result = persistence.resolve_device_id(
+            farm_code="farm_001",
+            device_code="missing_device",
+        )
+
+    assert result is None
+    fake_cursor.execute.assert_called_once()
+
+
+def test_update_device_status_updates_status_and_last_seen_at():
+    fake_connection = MagicMock()
+    fake_cursor = fake_connection.__enter__.return_value.cursor.return_value.__enter__.return_value
+
+    with patch("persistence.db.connect", return_value=fake_connection):
+        persistence.update_device_status(
+            device_id=7,
+            status="online",
+            last_seen_at="2026-10-08T00:00:00Z",
+        )
+
+    fake_cursor.execute.assert_called_once_with(
+        """
+                UPDATE devices
+                SET status = %s,
+                    last_seen_at = %s
+                WHERE id = %s
+                """,
+        ("online", "2026-10-08T00:00:00Z", 7),
+    )

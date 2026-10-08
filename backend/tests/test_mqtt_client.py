@@ -24,6 +24,8 @@ def test_publish_serializes_payload_and_publishes():
 
 def test_on_message_updates_state_store():
     mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+    mqtt_client.persistence.resolve_device_id.return_value = None
 
     messages = [
         MagicMock(topic="farm/farm_001/esp32/esp32_001/status", payload=b"{\"device_id\":\"esp32_001\",\"status\":\"online\",\"timestamp\":\"2026-10-08T00:00:00Z\"}"),
@@ -100,3 +102,34 @@ def test_on_sensor_message_skips_database_when_sensor_cannot_be_resolved():
     )
     mqtt_client.persistence.insert_sensor_reading.assert_not_called()
     mqtt_client.state_store.set_sensor_reading.assert_called_once()
+
+
+def test_on_device_status_persists_to_database_and_updates_state_store():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+    mqtt_client.persistence.resolve_device_id.return_value = 7
+
+    message = MagicMock(
+        topic="farm/farm_001/esp32/esp32_001/status",
+        payload=b"{\"device_id\":\"esp32_001\",\"status\":\"online\",\"timestamp\":\"2026-10-08T00:00:00Z\"}",
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.resolve_device_id.assert_called_once_with(
+        "farm_001",
+        "esp32_001",
+    )
+    mqtt_client.persistence.update_device_status.assert_called_once_with(
+        device_id=7,
+        status="online",
+        last_seen_at="2026-10-08T00:00:00Z",
+    )
+    mqtt_client.state_store.set_esp32_status.assert_called_once_with(
+        "esp32_001",
+        {
+            "device_id": "esp32_001",
+            "status": "online",
+            "timestamp": "2026-10-08T00:00:00Z",
+        },
+    )

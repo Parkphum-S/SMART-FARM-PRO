@@ -23,6 +23,17 @@ def on_message(client, userdata, msg) -> None:
     if len(parts) == 5 and parts[2] == "esp32" and parts[4] == "status":
         device_id = payload.get("device_id") or payload.get("esp32_id")
         if device_id:
+            farm_code = parts[1]
+            resolved_device_id = persistence.resolve_device_id(
+                farm_code,
+                device_id,
+            )
+            if resolved_device_id is not None:
+                persistence.update_device_status(
+                    device_id=resolved_device_id,
+                    status=payload.get("status", "unknown"),
+                    last_seen_at=payload.get("timestamp"),
+                )
             state_store.set_esp32_status(device_id, payload)
     elif len(parts) == 7 and parts[2] == "zone" and parts[4] == "sensor" and parts[6] == "reading":
         sensor_id = payload.get("sensor_id")

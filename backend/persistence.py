@@ -40,6 +40,43 @@ def insert_sensor_reading(
 
     return row[0]
 
+def update_device_status(
+    device_id: int,
+    status: str,
+    last_seen_at: str | None = None,
+) -> None:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE devices
+                SET status = %s,
+                    last_seen_at = %s
+                WHERE id = %s
+                """,
+                (status, last_seen_at, device_id),
+            )
+
+def resolve_device_id(
+    farm_code: str,
+    device_code: str,
+) -> int | None:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT d.id
+                FROM devices AS d
+                JOIN farms AS f ON f.id = d.farm_id
+                WHERE f.farm_code = %s
+                  AND d.device_code = %s
+                """,
+                (farm_code, device_code),
+            )
+            row = cur.fetchone()
+
+    return row[0] if row else None
+
 def resolve_sensor_id(
     farm_code: str,
     zone_code: str,
