@@ -59,3 +59,27 @@ def validate_esp32_status(payload: dict) -> bool:
         return False
 
     return True
+
+
+
+def validate_actuator_state(payload: dict) -> bool:
+    if not isinstance(payload, dict):
+        return False
+
+    required = {"actuator_id", "state", "timestamp"}
+    if not required.issubset(payload):
+        return False
+
+    if not isinstance(payload["actuator_id"], str) or not payload["actuator_id"]:
+        return False
+    if payload["state"] not in {"on", "off"}:
+        return False
+    if not isinstance(payload["timestamp"], str):
+        return False
+
+    try:
+        datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    return True
