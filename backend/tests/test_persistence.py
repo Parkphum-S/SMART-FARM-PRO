@@ -252,3 +252,24 @@ def test_get_user_permissions_returns_empty_set():
 
     assert result == set()
     cursor.execute.assert_called_once()
+
+def test_insert_actuator_command_returns_id():
+    fake_connection = MagicMock()
+    fake_cursor = fake_connection.__enter__.return_value.cursor.return_value.__enter__.return_value
+    fake_cursor.fetchone.return_value = (123,)
+
+    with patch("persistence.db.connect", return_value=fake_connection):
+        result = persistence.insert_actuator_command(
+            actuator_id=11,
+            command="on",
+            request_id="req-test-001",
+            requested_at="2026-10-08T16:00:00+00:00",
+            raw_payload={
+                "actuator_id": "pump_001",
+                "command": "on",
+                "request_id": "req-test-001",
+            },
+        )
+
+    assert result == 123
+    fake_cursor.execute.assert_called_once()

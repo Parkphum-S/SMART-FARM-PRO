@@ -77,6 +77,40 @@ def resolve_device_id(
 
     return row[0] if row else None
 
+def insert_actuator_command(
+    actuator_id: int,
+    command: str,
+    request_id: str,
+    requested_at: str,
+    raw_payload: dict[str, Any] | None = None,
+) -> int:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO actuator_commands (
+                    actuator_id,
+                    command,
+                    request_id,
+                    requested_at,
+                    raw_payload
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    actuator_id,
+                    command,
+                    request_id,
+                    requested_at,
+                    Jsonb(raw_payload) if raw_payload is not None else None,
+                ),
+            )
+            row = cur.fetchone()
+
+    return row[0]
+
+
 def insert_actuator_state(
     actuator_id: int,
     state: str,
