@@ -1,7 +1,7 @@
 import paho.mqtt.client as mqtt
 
 from mqtt_parser import parse_payload
-from mqtt_validator import validate_actuator_command, validate_payload, validate_sensor_reading
+from mqtt_validator import validate_actuator_ack, validate_actuator_command, validate_payload, validate_sensor_reading
 from mqtt_config import (
     MQTT_HOST,
     MQTT_PASSWORD,
@@ -34,6 +34,9 @@ def on_message(client, userdata, msg) -> None:
         return
     if "/actuator/" in msg.topic and "/command" in msg.topic and not validate_actuator_command(payload):
         print(f"MQTT invalid actuator command: topic={msg.topic}")
+        return
+    if "/actuator/" in msg.topic and "/ack" in msg.topic and not validate_actuator_ack(payload):
+        print(f"MQTT invalid actuator ack: topic={msg.topic}")
         return
     if "/sensor/" not in msg.topic and not validate_payload(payload):
         print(f"MQTT invalid payload: topic={msg.topic}")
