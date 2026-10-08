@@ -1,7 +1,7 @@
 import paho.mqtt.client as mqtt
 
 from mqtt_parser import parse_payload
-from mqtt_validator import validate_payload
+from mqtt_validator import validate_payload, validate_sensor_reading
 from mqtt_config import (
     MQTT_HOST,
     MQTT_PASSWORD,
@@ -29,7 +29,10 @@ def on_message(client, userdata, msg) -> None:
     if payload is None:
         print(f"MQTT invalid JSON: topic={msg.topic}")
         return
-    if not validate_payload(payload):
+    if "/sensor/" in msg.topic and not validate_sensor_reading(payload):
+        print(f"MQTT invalid sensor payload: topic={msg.topic}")
+        return
+    if "/sensor/" not in msg.topic and not validate_payload(payload):
         print(f"MQTT invalid payload: topic={msg.topic}")
         return
     print(f"MQTT message received: topic={msg.topic} payload={payload}")
