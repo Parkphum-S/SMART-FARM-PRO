@@ -330,3 +330,49 @@ def test_send_actuator_command_does_not_publish_when_persistence_fails():
     assert response.status_code == 500
     assert response.json() == {"detail": "Failed to record actuator command"}
     publish.assert_not_called()
+
+def test_send_actuator_command_returns_error_when_mqtt_publish_fails():
+    from app import app
+
+    user = {
+        "id": 7,
+        "username": "operator",
+        "email": "operator@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    app.dependency_overrides = {
+        dependencies.get_current_user: lambda: user,
+    }
+
+    try:
+        with patch(
+            "dependencies.persistence.get_user_permissions",
+            return_value={"actuator.control"},
+        ), patch(
+            "app.persistence.resolve_actuator_id",
+            return_value=11,
+        ), patch(
+            "app.persistence.insert_actuator_command",
+            return_value=124,
+        ) as persist, patch(
+            "app.mqtt_client.publish",
+            side_effect=RuntimeError("MQTT unavailable"),
+        ) as publish, TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/api/v1/actuators/pump_001/command",
+                json={
+                    "command": "on",
+                    "request_id": "req-api-mqtt-fail-001",
+                    "timestamp": "2026-10-09T00:00:00Z",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "detail": "Failed to publish actuator command"
+    }
+    persist.assert_called_once()
+    publish.assert_called_once()

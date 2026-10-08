@@ -99,7 +99,14 @@ def send_actuator_command(
             detail="Failed to record actuator command",
         ) from exc
 
-    mqtt_client.publish(topic, payload)
+    try:
+        mqtt_client.publish(topic, payload)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to publish actuator command",
+        ) from exc
+
     return {"status": "accepted", "request_id": body.request_id}
 
 
