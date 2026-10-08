@@ -14,10 +14,26 @@ client = mqtt.Client(
 )
 
 client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+TOPICS = (
+    "farm/farm_001/esp32/+/status",
+    "farm/farm_001/zone/+/sensor/+/reading",
+    "farm/farm_001/zone/+/actuator/+/state",
+    "farm/farm_001/zone/+/actuator/+/ack",
+    "farm/farm_001/zone/+/actuator/+/command",
+)
 
+def on_message(client, userdata, msg) -> None:
+    print(
+        f"MQTT message received: topic={msg.topic} payload={msg.payload.decode()}"
+    )
+
+
+client.on_message = on_message
 
 def connect() -> None:
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+    for topic in TOPICS:
+        client.subscribe(topic)
     client.loop_start()
 
 
