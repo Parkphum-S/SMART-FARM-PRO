@@ -83,3 +83,29 @@ def validate_actuator_state(payload: dict) -> bool:
         return False
 
     return True
+
+
+
+def validate_actuator_ack(payload: dict) -> bool:
+    if not isinstance(payload, dict):
+        return False
+
+    required = {"actuator_id", "request_id", "result", "timestamp"}
+    if not required.issubset(payload):
+        return False
+
+    if not isinstance(payload["actuator_id"], str) or not payload["actuator_id"]:
+        return False
+    if not isinstance(payload["request_id"], str) or not payload["request_id"]:
+        return False
+    if payload["result"] not in {"accepted", "rejected"}:
+        return False
+    if not isinstance(payload["timestamp"], str):
+        return False
+
+    try:
+        datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    return True
