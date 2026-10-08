@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Smart Farm Pro",
+    "slug": "smart-farm-pro",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "smartfarmpro",
+    "userInterfaceStyle": "automatic",
+    "web": {"bundler":"metro"},
+    "experiments": {"typedRoutes":true}
+  }
+}
