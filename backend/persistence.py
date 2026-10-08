@@ -1,6 +1,7 @@
 from typing import Any
 
 import db
+from psycopg.types.json import Jsonb
 
 
 def insert_sensor_reading(
@@ -32,7 +33,7 @@ def insert_sensor_reading(
                     temperature_c,
                     humidity_pct,
                     value,
-                    raw_payload,
+                    Jsonb(raw_payload) if raw_payload is not None else None,
                 ),
             )
             row = cur.fetchone()
