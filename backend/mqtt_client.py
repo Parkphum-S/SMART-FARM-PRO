@@ -60,6 +60,22 @@ def on_message(client, userdata, msg) -> None:
     elif len(parts) == 7 and parts[2] == "zone" and parts[4] == "actuator" and parts[6] == "state":
         actuator_id = payload.get("actuator_id")
         if actuator_id:
+            farm_code = parts[1]
+            zone_code = parts[3]
+            resolved_actuator_id = persistence.resolve_actuator_id(
+                farm_code,
+                zone_code,
+                actuator_id,
+            )
+
+            if resolved_actuator_id is not None:
+                persistence.insert_actuator_state(
+                    actuator_id=resolved_actuator_id,
+                    state=payload.get("state", "unknown"),
+                    recorded_at=payload.get("timestamp"),
+                    raw_payload=payload,
+                )
+
             state_store.set_actuator_state(actuator_id, payload)
 
 client.on_message = on_message

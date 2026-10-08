@@ -77,6 +77,61 @@ def resolve_device_id(
 
     return row[0] if row else None
 
+def insert_actuator_state(
+    actuator_id: int,
+    state: str,
+    recorded_at: str,
+    raw_payload: dict[str, Any] | None = None,
+) -> int:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO actuator_states (
+                    actuator_id,
+                    state,
+                    recorded_at,
+                    raw_payload
+                )
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    actuator_id,
+                    state,
+                    recorded_at,
+                    Jsonb(raw_payload) if raw_payload is not None else None,
+                ),
+            )
+            row = cur.fetchone()
+
+    return row[0]
+
+
+def resolve_actuator_id(
+    farm_code: str,
+    zone_code: str,
+    actuator_code: str,
+) -> int | None:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.id
+                FROM actuators AS a
+                JOIN farms AS f ON f.id = a.farm_id
+                JOIN zones AS z ON z.id = a.zone_id
+                WHERE f.farm_code = %s
+                  AND z.zone_code = %s
+                  AND a.actuator_code = %s
+                """,
+                (farm_code, zone_code, actuator_code),
+            )
+            row = cur.fetchone()
+
+    return row[0] if row else None
+
+
 def resolve_sensor_id(
     farm_code: str,
     zone_code: str,

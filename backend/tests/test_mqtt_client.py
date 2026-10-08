@@ -133,3 +133,67 @@ def test_on_device_status_persists_to_database_and_updates_state_store():
             "timestamp": "2026-10-08T00:00:00Z",
         },
     )
+
+def test_on_actuator_state_persists_to_database_and_updates_state_store():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+    mqtt_client.persistence.resolve_actuator_id.return_value = 11
+
+    message = MagicMock(
+        topic="farm/farm_001/zone/zone_01/actuator/pump_001/state",
+        payload=b"{\"actuator_id\":\"pump_001\",\"state\":\"on\",\"timestamp\":\"2026-10-08T00:00:00Z\"}",
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.resolve_actuator_id.assert_called_once_with(
+        "farm_001",
+        "zone_01",
+        "pump_001",
+    )
+    mqtt_client.persistence.insert_actuator_state.assert_called_once_with(
+        actuator_id=11,
+        state="on",
+        recorded_at="2026-10-08T00:00:00Z",
+        raw_payload={
+            "actuator_id": "pump_001",
+            "state": "on",
+            "timestamp": "2026-10-08T00:00:00Z",
+        },
+    )
+    mqtt_client.state_store.set_actuator_state.assert_called_once_with(
+        "pump_001",
+        {
+            "actuator_id": "pump_001",
+            "state": "on",
+            "timestamp": "2026-10-08T00:00:00Z",
+        },
+    )
+
+
+def test_on_actuator_state_skips_database_when_actuator_cannot_be_resolved():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+    mqtt_client.persistence.resolve_actuator_id.return_value = None
+
+    message = MagicMock(
+        topic="farm/farm_001/zone/zone_01/actuator/missing_actuator/state",
+        payload=b"{\"actuator_id\":\"missing_actuator\",\"state\":\"off\",\"timestamp\":\"2026-10-08T00:00:00Z\"}",
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.resolve_actuator_id.assert_called_once_with(
+        "farm_001",
+        "zone_01",
+        "missing_actuator",
+    )
+    mqtt_client.persistence.insert_actuator_state.assert_not_called()
+    mqtt_client.state_store.set_actuator_state.assert_called_once_with(
+        "missing_actuator",
+        {
+            "actuator_id": "missing_actuator",
+            "state": "off",
+            "timestamp": "2026-10-08T00:00:00Z",
+        },
+    )
