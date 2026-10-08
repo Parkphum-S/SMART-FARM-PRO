@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 import mqtt_client
@@ -18,6 +18,35 @@ app = FastAPI(
     title="Smart Farm Backend",
     lifespan=lifespan,
 )
+
+
+class LoginRequest(BaseModel):
+    identifier: str
+    password: str
+
+
+@app.post("/api/v1/auth/login")
+def login(body: LoginRequest):
+    import auth
+    import persistence
+
+    user = persistence.get_user_for_auth(body.identifier)
+
+    if user is None or not auth.verify_password(
+        body.password,
+        user["password_hash"],
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+        )
+
+    access_token = auth.create_access_token(str(user["id"]))
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
 
 
 @app.get("/health")

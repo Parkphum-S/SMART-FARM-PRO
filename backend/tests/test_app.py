@@ -43,3 +43,62 @@ def test_get_latest_farm_data():
     assert sensor_response.json() == {"data": {"dht11_001": {"temperature_c": 28.5}}}
     assert actuator_response.status_code == 200
     assert actuator_response.json() == {"data": {"pump_001": {"state": "on"}}}
+
+
+def test_login_returns_access_token(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", "test-only-secret-for-pytest-32-bytes-long")
+
+    from app import app
+
+    with patch(
+        "persistence.get_user_for_auth",
+        return_value={
+            "id": 7,
+            "username": "admin",
+            "email": "admin@example.com",
+            "password_hash": "hashed-password",
+            "is_active": True,
+        },
+    ), patch(
+        "auth.verify_password",
+        return_value=True,
+    ), patch(
+        "auth.create_access_token",
+        return_value="test-access-token",
+    ):
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/auth/login",
+                json={
+                    "identifier": "admin",
+                    "password": "correct-password",
+                },
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "access_token": "test-access-token",
+        "token_type": "bearer",
+    }
+
+
+def test_login_rejects_invalid_credentials(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", "test-only-secret-for-pytest-32-bytes-long")
+
+    from app import app
+
+    with patch(
+        "persistence.get_user_for_auth",
+        return_value=None,
+    ):
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/auth/login",
+                json={
+                    "identifier": "missing-user",
+                    "password": "wrong-password",
+                },
+            )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid credentials"}
