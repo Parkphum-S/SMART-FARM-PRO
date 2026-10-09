@@ -21,11 +21,21 @@ def validate_sensor_reading(payload: dict) -> bool:
 
     if not isinstance(payload["sensor_id"], str) or not payload["sensor_id"]:
         return False
-    if payload["type"] != "temperature_humidity":
+    if payload["type"] not in {"temperature_humidity", "temperature_humidity_soil"}:
         return False
     if not isinstance(payload["temperature_c"], (int, float)):
         return False
     if not isinstance(payload["humidity_pct"], (int, float)):
+        return False
+    if "soil_moisture_pct" in payload:
+        soil_moisture_pct = payload["soil_moisture_pct"]
+        if (
+            isinstance(soil_moisture_pct, bool)
+            or not isinstance(soil_moisture_pct, (int, float))
+            or not 0 <= soil_moisture_pct <= 100
+        ):
+            return False
+    if payload["type"] == "temperature_humidity_soil" and "soil_moisture_pct" not in payload:
         return False
     if not isinstance(payload["timestamp"], str):
         return False
@@ -61,7 +71,6 @@ def validate_esp32_status(payload: dict) -> bool:
     return True
 
 
-
 def validate_actuator_state(payload: dict) -> bool:
     if not isinstance(payload, dict):
         return False
@@ -83,7 +92,6 @@ def validate_actuator_state(payload: dict) -> bool:
         return False
 
     return True
-
 
 
 def validate_actuator_ack(payload: dict) -> bool:
@@ -109,7 +117,6 @@ def validate_actuator_ack(payload: dict) -> bool:
         return False
 
     return True
-
 
 
 def validate_actuator_command(payload: dict) -> bool:
