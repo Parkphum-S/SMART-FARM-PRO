@@ -376,3 +376,55 @@ def test_send_actuator_command_returns_error_when_mqtt_publish_fails():
     }
     persist.assert_called_once()
     publish.assert_called_once()
+
+
+def test_get_sensor_reading_history_uses_persistence_filters():
+    from app import app
+
+    rows = [
+        {
+            "id": 55,
+            "farm_code": "farm_001",
+            "zone_code": "zone_01",
+            "sensor_code": "am2305b_001",
+            "recorded_at": "2026-10-09T12:00:00+00:00",
+            "temperature_c": 29.1,
+            "humidity_pct": 68.0,
+            "value": 64.5,
+            "raw_payload": {"soil_moisture_pct": 64.5},
+        }
+    ]
+    with patch("app.persistence.list_sensor_readings", return_value=rows) as list_readings:
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/v1/sensors/readings/history",
+                params={
+                    "limit": 25,
+                    "sensor_code": "am2305b_001",
+                    "farm_code": "farm_001",
+                    "zone_code": "zone_01",
+                },
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {"data": rows}
+    list_readings.assert_called_once_with(
+        limit=25,
+        sensor_code="am2305b_001",
+        farm_code="farm_001",
+        zone_code="zone_01",
+    )
+
+
+def test_get_sensor_reading_history_validates_limit():
+    from app import app
+
+    with patch("app.persistence.list_sensor_readings") as list_readings:
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/v1/sensors/readings/history",
+                params={"limit": 0},
+            )
+
+    assert response.status_code == 422
+    list_readings.assert_not_called()
