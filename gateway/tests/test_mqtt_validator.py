@@ -16,6 +16,27 @@ class TestSensorReadingValidation(unittest.TestCase):
     def test_valid_sensor_reading(self):
         self.assertTrue(validate_sensor_reading(self.valid_payload))
 
+    def test_valid_temperature_humidity_soil_reading(self):
+        payload = {
+            **self.valid_payload,
+            "sensor_id": "am2305b_001",
+            "type": "temperature_humidity_soil",
+            "soil_moisture_pct": 64.5,
+        }
+        self.assertTrue(validate_sensor_reading(payload))
+
+    def test_soil_moisture_must_be_in_range(self):
+        payload = {
+            **self.valid_payload,
+            "type": "temperature_humidity_soil",
+            "soil_moisture_pct": 101,
+        }
+        self.assertFalse(validate_sensor_reading(payload))
+
+    def test_soil_sensor_type_requires_soil_moisture(self):
+        payload = {**self.valid_payload, "type": "temperature_humidity_soil"}
+        self.assertFalse(validate_sensor_reading(payload))
+
     def test_missing_timestamp(self):
         payload = {key: value for key, value in self.valid_payload.items() if key != "timestamp"}
         self.assertFalse(validate_sensor_reading(payload))
@@ -77,7 +98,6 @@ class TestActuatorStateValidation(unittest.TestCase):
         self.assertFalse(validate_actuator_state(payload))
 
 
-
 class TestActuatorAckValidation(unittest.TestCase):
     def setUp(self):
         self.valid_payload = {
@@ -101,7 +121,6 @@ class TestActuatorAckValidation(unittest.TestCase):
     def test_invalid_timestamp(self):
         payload = {**self.valid_payload, "timestamp": "not-a-timestamp"}
         self.assertFalse(validate_actuator_ack(payload))
-
 
 
 class TestActuatorCommandValidation(unittest.TestCase):
