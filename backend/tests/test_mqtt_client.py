@@ -1,3 +1,4 @@
+import json
 import sys
 from unittest.mock import MagicMock
 
@@ -197,3 +198,35 @@ def test_on_actuator_state_skips_database_when_actuator_cannot_be_resolved():
             "timestamp": "2026-10-08T00:00:00Z",
         },
     )
+
+
+
+def test_on_soil_sensor_message_persists_soil_moisture_value():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+    mqtt_client.persistence.resolve_sensor_id.return_value = 42
+
+    payload = {
+        "sensor_id": "am2305b_001",
+        "type": "temperature_humidity_soil",
+        "temperature_c": 28.5,
+        "humidity_pct": 72.0,
+        "soil_moisture_pct": 64.5,
+        "timestamp": "2026-10-09T00:00:00Z",
+    }
+    message = MagicMock(
+        topic="farm/farm_001/zone/zone_01/sensor/am2305b_001/reading",
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.insert_sensor_reading.assert_called_once_with(
+        sensor_id=42,
+        recorded_at="2026-10-09T00:00:00Z",
+        temperature_c=28.5,
+        humidity_pct=72.0,
+        value=64.5,
+        raw_payload=payload,
+    )
+    mqtt_client.state_store.set_sensor_reading.assert_called_once_with("am2305b_001", payload)
