@@ -47,12 +47,16 @@ def on_message(client, userdata, msg) -> None:
             )
 
             if resolved_sensor_id is not None:
+                # Keep temperature and humidity in their dedicated columns.
+                # Soil moisture uses the generic numeric value column while the
+                # complete payload remains available in raw_payload.
+                sensor_value = payload.get("soil_moisture_pct", payload.get("value"))
                 persistence.insert_sensor_reading(
                     sensor_id=resolved_sensor_id,
                     recorded_at=payload.get("timestamp"),
                     temperature_c=payload.get("temperature_c"),
                     humidity_pct=payload.get("humidity_pct"),
-                    value=payload.get("value"),
+                    value=sensor_value,
                     raw_payload=payload,
                 )
 
@@ -78,6 +82,7 @@ def on_message(client, userdata, msg) -> None:
 
             state_store.set_actuator_state(actuator_id, payload)
 
+
 client.on_message = on_message
 
 TOPICS = (
@@ -85,6 +90,7 @@ TOPICS = (
     "farm/farm_001/zone/+/sensor/+/reading",
     "farm/farm_001/zone/+/actuator/+/state",
 )
+
 
 def connect() -> None:
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
