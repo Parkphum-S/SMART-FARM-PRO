@@ -27,3 +27,10 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# ESP32 firmware secrets and generated files
+firmware/esp32/secrets.h
+firmware/esp32/secrets.local.h
+firmware/esp32/*.bin
+firmware/esp32/*.elf
+firmware/esp32/*.map

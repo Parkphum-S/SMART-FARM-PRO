@@ -1,0 +1,10 @@
+secrets.h
+secrets.local.h
+*.bin
+*.elf
+*.map
+build/
+.cache/
+.DS_Store
+
+!secrets.example.h
