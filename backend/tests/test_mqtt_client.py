@@ -230,3 +230,98 @@ def test_on_soil_sensor_message_persists_soil_moisture_value():
         raw_payload=payload,
     )
     mqtt_client.state_store.set_sensor_reading.assert_called_once_with("am2305b_001", payload)
+
+def test_on_actuator_ack_persists_matching_command():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+    mqtt_client.persistence.resolve_actuator_id.return_value = 11
+
+    payload = {
+        "actuator_id": "pump_001",
+        "request_id": "req-ack-001",
+        "result": "accepted",
+        "timestamp": "2026-10-09T10:00:00Z",
+    }
+    message = MagicMock(
+        topic="farm/farm_001/zone/zone_01/actuator/pump_001/ack",
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.resolve_actuator_id.assert_called_once_with(
+        "farm_001", "zone_01", "pump_001"
+    )
+    mqtt_client.persistence.update_actuator_command_ack.assert_called_once_with(
+        actuator_id=11,
+        request_id="req-ack-001",
+        result="accepted",
+        acknowledged_at="2026-10-09T10:00:00Z",
+    )
+    mqtt_client.state_store.set_actuator_state.assert_not_called()
+
+
+def test_on_actuator_ack_rejects_payload_actuator_mismatch():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+
+    payload = {
+        "actuator_id": "pump_002",
+        "request_id": "req-ack-002",
+        "result": "accepted",
+        "timestamp": "2026-10-09T10:00:00Z",
+    }
+    message = MagicMock(
+        topic="farm/farm_001/zone/zone_01/actuator/pump_001/ack",
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.resolve_actuator_id.assert_not_called()
+    mqtt_client.persistence.update_actuator_command_ack.assert_not_called()
+
+
+def test_on_actuator_ack_rejects_invalid_result():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+
+    payload = {
+        "actuator_id": "pump_001",
+        "request_id": "req-ack-003",
+        "result": "unknown",
+        "timestamp": "2026-10-09T10:00:00Z",
+    }
+    message = MagicMock(
+        topic="farm/farm_001/zone/zone_01/actuator/pump_001/ack",
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.resolve_actuator_id.assert_not_called()
+    mqtt_client.persistence.update_actuator_command_ack.assert_not_called()
+
+
+def test_on_actuator_ack_skips_unknown_actuator():
+    mqtt_client.state_store = MagicMock()
+    mqtt_client.persistence = MagicMock()
+    mqtt_client.persistence.resolve_actuator_id.return_value = None
+
+    payload = {
+        "actuator_id": "missing_actuator",
+        "request_id": "req-ack-004",
+        "result": "rejected",
+        "timestamp": "2026-10-09T10:00:00Z",
+    }
+    message = MagicMock(
+        topic="farm/farm_001/zone/zone_01/actuator/missing_actuator/ack",
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+
+    mqtt_client.on_message(mqtt_client.client, None, message)
+
+    mqtt_client.persistence.resolve_actuator_id.assert_called_once_with(
+        "farm_001", "zone_01", "missing_actuator"
+    )
+    mqtt_client.persistence.update_actuator_command_ack.assert_not_called()

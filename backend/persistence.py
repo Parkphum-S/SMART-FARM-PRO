@@ -111,6 +111,39 @@ def insert_actuator_command(
     return row[0]
 
 
+def update_actuator_command_ack(
+    actuator_id: int,
+    request_id: str,
+    result: str,
+    acknowledged_at: str,
+) -> bool:
+    if result not in {"accepted", "rejected"}:
+        return False
+
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE actuator_commands
+                SET acknowledged_at = %s,
+                    result = %s
+                WHERE request_id = %s
+                  AND actuator_id = %s
+                  AND acknowledged_at IS NULL
+                RETURNING id
+                """,
+                (
+                    acknowledged_at,
+                    result,
+                    request_id,
+                    actuator_id,
+                ),
+            )
+            row = cur.fetchone()
+
+    return row is not None
+
+
 def insert_actuator_state(
     actuator_id: int,
     state: str,

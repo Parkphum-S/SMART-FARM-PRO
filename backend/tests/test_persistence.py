@@ -331,3 +331,55 @@ def test_list_sensor_readings_rejects_invalid_limit():
 
     with pytest.raises(ValueError, match="limit must be between 1 and 500"):
         persistence.list_sensor_readings(limit=0)
+
+def test_update_actuator_command_ack_returns_true_when_updated():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = (123,)
+
+        result = persistence.update_actuator_command_ack(
+            actuator_id=11,
+            request_id="req-test-001",
+            result="accepted",
+            acknowledged_at="2026-10-09T10:00:00+00:00",
+        )
+
+    assert result is True
+    query, params = cursor.execute.call_args.args
+    assert "acknowledged_at IS NULL" in query
+    assert "raw_payload" not in query
+    assert params == (
+        "2026-10-09T10:00:00+00:00",
+        "accepted",
+        "req-test-001",
+        11,
+    )
+
+
+def test_update_actuator_command_ack_returns_false_when_not_found():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = None
+
+        result = persistence.update_actuator_command_ack(
+            actuator_id=11,
+            request_id="unknown-request",
+            result="rejected",
+            acknowledged_at="2026-10-09T10:00:00+00:00",
+        )
+
+    assert result is False
+    cursor.execute.assert_called_once()
+
+
+def test_update_actuator_command_ack_rejects_invalid_result():
+    with patch("persistence.db.connect") as connect:
+        result = persistence.update_actuator_command_ack(
+            actuator_id=11,
+            request_id="req-test-001",
+            result="unknown",
+            acknowledged_at="2026-10-09T10:00:00+00:00",
+        )
+
+    assert result is False
+    connect.assert_not_called()

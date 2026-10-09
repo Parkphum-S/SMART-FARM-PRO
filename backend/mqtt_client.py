@@ -61,6 +61,41 @@ def on_message(client, userdata, msg) -> None:
                 )
 
             state_store.set_sensor_reading(sensor_id, payload)
+    elif (
+        len(parts) == 7
+        and parts[2] == "zone"
+        and parts[4] == "actuator"
+        and parts[6] == "ack"
+        and isinstance(payload, dict)
+    ):
+        topic_actuator_code = parts[5]
+        payload_actuator_code = payload.get("actuator_id")
+        request_id = payload.get("request_id")
+        result = payload.get("result")
+        acknowledged_at = payload.get("timestamp")
+
+        if (
+            payload_actuator_code != topic_actuator_code
+            or not isinstance(request_id, str)
+            or not request_id.strip()
+            or result not in {"accepted", "rejected"}
+            or not isinstance(acknowledged_at, str)
+            or not acknowledged_at.strip()
+        ):
+            return
+
+        resolved_actuator_id = persistence.resolve_actuator_id(
+            parts[1],
+            parts[3],
+            topic_actuator_code,
+        )
+        if resolved_actuator_id is not None:
+            persistence.update_actuator_command_ack(
+                actuator_id=resolved_actuator_id,
+                request_id=request_id,
+                result=result,
+                acknowledged_at=acknowledged_at,
+            )
     elif len(parts) == 7 and parts[2] == "zone" and parts[4] == "actuator" and parts[6] == "state":
         actuator_id = payload.get("actuator_id")
         if actuator_id:
@@ -89,6 +124,7 @@ TOPICS = (
     "farm/farm_001/esp32/+/status",
     "farm/farm_001/zone/+/sensor/+/reading",
     "farm/farm_001/zone/+/actuator/+/state",
+    "farm/farm_001/zone/+/actuator/+/ack",
 )
 
 

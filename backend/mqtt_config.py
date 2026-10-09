@@ -11,5 +11,5 @@ load_dotenv(BASE_DIR.parent / ".env")
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USERNAME = os.getenv("MQTT_BACKEND_USERNAME", "")
+MQTT_USERNAME = os.getenv("MQTT_BACKEND_USERNAME", "smartfarm_backend")
 MQTT_PASSWORD = os.getenv("MQTT_BACKEND_PASSWORD", "")

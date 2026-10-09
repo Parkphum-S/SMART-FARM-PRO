@@ -21,6 +21,13 @@ async def test_lifespan_manages_mqtt_client():
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def mock_mqtt_connection():
+    with patch("app.mqtt_client.connect"), patch("app.mqtt_client.disconnect"):
+        yield
+
+
+
 def test_send_actuator_command():
     from app import app
 
