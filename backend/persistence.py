@@ -292,3 +292,65 @@ def upsert_farm_settings(
                     location_source,
                 ),
             )
+
+def list_sensor_readings(
+    limit: int = 100,
+    sensor_code: str | None = None,
+    farm_code: str | None = None,
+    zone_code: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return newest persisted sensor readings, optionally filtered by sensor/farm/zone."""
+    if not 1 <= limit <= 500:
+        raise ValueError("limit must be between 1 and 500")
+
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    sr.id,
+                    f.farm_code,
+                    z.zone_code,
+                    s.sensor_code,
+                    sr.recorded_at,
+                    sr.temperature_c,
+                    sr.humidity_pct,
+                    sr.value,
+                    sr.raw_payload
+                FROM sensor_readings AS sr
+                JOIN sensors AS s ON s.id = sr.sensor_id
+                JOIN farms AS f ON f.id = s.farm_id
+                JOIN zones AS z ON z.id = s.zone_id
+                WHERE (%s IS NULL OR s.sensor_code = %s)
+                  AND (%s IS NULL OR f.farm_code = %s)
+                  AND (%s IS NULL OR z.zone_code = %s)
+                ORDER BY sr.recorded_at DESC, sr.id DESC
+                LIMIT %s
+                """,
+                (
+                    sensor_code,
+                    sensor_code,
+                    farm_code,
+                    farm_code,
+                    zone_code,
+                    zone_code,
+                    limit,
+                ),
+            )
+            rows = cur.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "farm_code": row[1],
+            "zone_code": row[2],
+            "sensor_code": row[3],
+            "recorded_at": row[4],
+            "temperature_c": row[5],
+            "humidity_pct": row[6],
+            "value": row[7],
+            "raw_payload": row[8],
+        }
+        for row in rows
+    ]
+
