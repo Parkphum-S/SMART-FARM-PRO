@@ -78,18 +78,53 @@ def test_send_actuator_command():
 
 def test_get_latest_farm_data():
     from app import app
-    with patch("app.state_store.get_esp32_status", return_value={"esp32_001": {"status": "online"}}), patch("app.state_store.get_sensor_readings", return_value={"dht11_001": {"temperature_c": 28.5}}), patch("app.state_store.get_actuator_states", return_value={"pump_001": {"state": "on"}}):
-        with TestClient(app) as client:
+
+    user = {
+        "id": 7,
+        "username": "viewer",
+        "email": "viewer@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    app.dependency_overrides[dependencies.get_current_user] = lambda: user
+
+    try:
+        with patch(
+            "dependencies.persistence.get_user_permissions",
+            return_value={
+                "device.view",
+                "sensor.view",
+                "actuator.view",
+                "sensor.history",
+            },
+        ), patch(
+            "app.state_store.get_esp32_status",
+            return_value={"esp32_001": {"status": "online"}},
+        ), patch(
+            "app.state_store.get_sensor_readings",
+            return_value={"dht11_001": {"temperature_c": 28.5}},
+        ), patch(
+            "app.state_store.get_actuator_states",
+            return_value={"pump_001": {"state": "on"}},
+        ), TestClient(app) as client:
             esp32_response = client.get("/api/v1/esp32/status")
             sensor_response = client.get("/api/v1/sensors/readings")
             actuator_response = client.get("/api/v1/actuators/states")
 
-    assert esp32_response.status_code == 200
-    assert esp32_response.json() == {"data": {"esp32_001": {"status": "online"}}}
-    assert sensor_response.status_code == 200
-    assert sensor_response.json() == {"data": {"dht11_001": {"temperature_c": 28.5}}}
-    assert actuator_response.status_code == 200
-    assert actuator_response.json() == {"data": {"pump_001": {"state": "on"}}}
+        assert esp32_response.status_code == 200
+        assert esp32_response.json() == {
+            "data": {"esp32_001": {"status": "online"}}
+        }
+        assert sensor_response.status_code == 200
+        assert sensor_response.json() == {
+            "data": {"dht11_001": {"temperature_c": 28.5}}
+        }
+        assert actuator_response.status_code == 200
+        assert actuator_response.json() == {
+            "data": {"pump_001": {"state": "on"}}
+        }
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_login_returns_access_token(monkeypatch):
@@ -388,6 +423,15 @@ def test_send_actuator_command_returns_error_when_mqtt_publish_fails():
 def test_get_sensor_reading_history_uses_persistence_filters():
     from app import app
 
+    user = {
+        "id": 7,
+        "username": "viewer",
+        "email": "viewer@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    app.dependency_overrides[dependencies.get_current_user] = lambda: user
+
     rows = [
         {
             "id": 55,
@@ -401,8 +445,15 @@ def test_get_sensor_reading_history_uses_persistence_filters():
             "raw_payload": {"soil_moisture_pct": 64.5},
         }
     ]
-    with patch("app.persistence.list_sensor_readings", return_value=rows) as list_readings:
-        with TestClient(app) as client:
+
+    try:
+        with patch(
+            "dependencies.persistence.get_user_permissions",
+            return_value={"sensor.history"},
+        ), patch(
+            "app.persistence.list_sensor_readings",
+            return_value=rows,
+        ) as list_readings, TestClient(app) as client:
             response = client.get(
                 "/api/v1/sensors/readings/history",
                 params={
@@ -413,25 +464,91 @@ def test_get_sensor_reading_history_uses_persistence_filters():
                 },
             )
 
-    assert response.status_code == 200
-    assert response.json() == {"data": rows}
-    list_readings.assert_called_once_with(
-        limit=25,
-        sensor_code="am2305b_001",
-        farm_code="farm_001",
-        zone_code="zone_01",
-    )
+        assert response.status_code == 200
+        assert response.json() == {"data": rows}
+        list_readings.assert_called_once_with(
+            limit=25,
+            sensor_code="am2305b_001",
+            farm_code="farm_001",
+            zone_code="zone_01",
+        )
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_get_sensor_reading_history_validates_limit():
     from app import app
 
-    with patch("app.persistence.list_sensor_readings") as list_readings:
-        with TestClient(app) as client:
+    user = {
+        "id": 7,
+        "username": "viewer",
+        "email": "viewer@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    app.dependency_overrides[dependencies.get_current_user] = lambda: user
+
+    try:
+        with patch(
+            "dependencies.persistence.get_user_permissions",
+            return_value={"sensor.history"},
+        ), patch("app.persistence.list_sensor_readings") as list_readings, TestClient(app) as client:
             response = client.get(
                 "/api/v1/sensors/readings/history",
                 params={"limit": 0},
             )
 
-    assert response.status_code == 422
-    list_readings.assert_not_called()
+        assert response.status_code == 422
+        list_readings.assert_not_called()
+    finally:
+        app.dependency_overrides.clear()
+
+
+
+
+READ_ENDPOINTS = [
+    "/api/v1/esp32/status",
+    "/api/v1/sensors/readings",
+    "/api/v1/sensors/readings/history",
+    "/api/v1/actuators/states",
+]
+
+
+@pytest.mark.parametrize("endpoint", READ_ENDPOINTS)
+def test_read_endpoints_require_authentication(endpoint):
+    from app import app
+
+    app.dependency_overrides.clear()
+    try:
+        with TestClient(app) as client:
+            response = client.get(endpoint)
+
+        assert response.status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("endpoint", READ_ENDPOINTS)
+def test_read_endpoints_reject_user_without_permission(endpoint):
+    from app import app
+
+    user = {
+        "id": 7,
+        "username": "viewer",
+        "email": "viewer@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    app.dependency_overrides[dependencies.get_current_user] = lambda: user
+
+    try:
+        with patch(
+            "dependencies.persistence.get_user_permissions",
+            return_value=set(),
+        ), TestClient(app) as client:
+            response = client.get(endpoint)
+
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Forbidden"}
+    finally:
+        app.dependency_overrides.clear()

@@ -111,17 +111,28 @@ def send_actuator_command(
 
 
 @app.get("/api/v1/esp32/status")
-def get_esp32_status():
+def get_esp32_status(
+    _: dict[str, object] = Depends(
+        dependencies.require_permission("device.view")
+    ),
+):
     return {"data": state_store.get_esp32_status()}
 
 
 @app.get("/api/v1/sensors/readings")
-def get_sensor_readings():
+def get_sensor_readings(
+    _: dict[str, object] = Depends(
+        dependencies.require_permission("sensor.view")
+    ),
+):
     return {"data": state_store.get_sensor_readings()}
 
 
 @app.get("/api/v1/sensors/readings/history")
 def get_sensor_reading_history(
+    _: dict[str, object] = Depends(
+        dependencies.require_permission("sensor.history")
+    ),
     limit: int = Query(default=100, ge=1, le=500),
     sensor_code: str | None = None,
     farm_code: str | None = None,
@@ -139,5 +150,9 @@ def get_sensor_reading_history(
 
 
 @app.get("/api/v1/actuators/states")
-def get_actuator_states():
+def get_actuator_states(
+    _: dict[str, object] = Depends(
+        dependencies.require_permission("actuator.view")
+    ),
+):
     return {"data": state_store.get_actuator_states()}
