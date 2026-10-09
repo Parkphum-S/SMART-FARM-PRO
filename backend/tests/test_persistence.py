@@ -273,3 +273,61 @@ def test_insert_actuator_command_returns_id():
 
     assert result == 123
     fake_cursor.execute.assert_called_once()
+
+
+def test_list_sensor_readings_returns_history_rows():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = [
+            (
+                55,
+                "farm_001",
+                "zone_01",
+                "am2305b_001",
+                "2026-10-09T12:00:00+00:00",
+                29.1,
+                68.0,
+                64.5,
+                {"soil_moisture_pct": 64.5},
+            )
+        ]
+
+        result = persistence.list_sensor_readings(
+            limit=25,
+            sensor_code="am2305b_001",
+            farm_code="farm_001",
+            zone_code="zone_01",
+        )
+
+    assert result == [
+        {
+            "id": 55,
+            "farm_code": "farm_001",
+            "zone_code": "zone_01",
+            "sensor_code": "am2305b_001",
+            "recorded_at": "2026-10-09T12:00:00+00:00",
+            "temperature_c": 29.1,
+            "humidity_pct": 68.0,
+            "value": 64.5,
+            "raw_payload": {"soil_moisture_pct": 64.5},
+        }
+    ]
+    query, params = cursor.execute.call_args.args
+    assert "ORDER BY sr.recorded_at DESC, sr.id DESC" in query
+    assert "LIMIT %s" in query
+    assert params == (
+        "am2305b_001",
+        "am2305b_001",
+        "farm_001",
+        "farm_001",
+        "zone_01",
+        "zone_01",
+        25,
+    )
+
+
+def test_list_sensor_readings_rejects_invalid_limit():
+    import pytest
+
+    with pytest.raises(ValueError, match="limit must be between 1 and 500"):
+        persistence.list_sensor_readings(limit=0)
