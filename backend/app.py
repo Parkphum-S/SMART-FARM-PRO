@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
 import dependencies
@@ -118,6 +118,24 @@ def get_esp32_status():
 @app.get("/api/v1/sensors/readings")
 def get_sensor_readings():
     return {"data": state_store.get_sensor_readings()}
+
+
+@app.get("/api/v1/sensors/readings/history")
+def get_sensor_reading_history(
+    limit: int = Query(default=100, ge=1, le=500),
+    sensor_code: str | None = None,
+    farm_code: str | None = None,
+    zone_code: str | None = None,
+):
+    """Return persisted sensor history, newest first."""
+    return {
+        "data": persistence.list_sensor_readings(
+            limit=limit,
+            sensor_code=sensor_code,
+            farm_code=farm_code,
+            zone_code=zone_code,
+        )
+    }
 
 
 @app.get("/api/v1/actuators/states")
