@@ -38,6 +38,8 @@ def test_resolve_sensor_id_returns_id():
 
     assert result == 42
     fake_cursor.execute.assert_called_once()
+    query = fake_cursor.execute.call_args.args[0]
+    assert "z.farm_id = s.farm_id" in query
 
 
 def test_resolve_sensor_id_returns_none_when_not_found():
@@ -196,6 +198,38 @@ def test_upsert_farm_settings():
     assert params == (1, 13.7563, 100.5018, "auto")
 
 
+def test_get_user_by_id_returns_active_user():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = (
+            7, "admin", "admin@example.com", "hashed-password", True
+        )
+        result = persistence.get_user_by_id(7)
+
+    assert result == {
+        "id": 7,
+        "username": "admin",
+        "email": "admin@example.com",
+        "password_hash": "hashed-password",
+        "is_active": True,
+    }
+    query, params = cursor.execute.call_args.args
+    assert "WHERE id = %s AND is_active = true" in query
+    assert params == (7,)
+
+
+def test_get_user_by_id_returns_none_when_not_found():
+    with patch("persistence.db.connect") as connect:
+        cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
+        cursor.fetchone.return_value = None
+        result = persistence.get_user_by_id(999)
+
+    assert result is None
+    query, params = cursor.execute.call_args.args
+    assert "WHERE id = %s AND is_active = true" in query
+    assert params == (999,)
+
+
 def test_get_user_for_auth_returns_active_user():
     with patch("persistence.db.connect") as connect:
         cursor = connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
@@ -293,6 +327,8 @@ def test_list_sensor_readings_returns_history_rows():
         ]
 
         result = persistence.list_sensor_readings(
+            user_id=7,
+            authorized_farm_codes={"farm_001"},
             limit=25,
             sensor_code="am2305b_001",
             farm_code="farm_001",
@@ -313,24 +349,18 @@ def test_list_sensor_readings_returns_history_rows():
         }
     ]
     query, params = cursor.execute.call_args.args
+    assert "f.farm_code = ANY(%s)" in query
+    assert "z.farm_id = s.farm_id" in query
     assert "ORDER BY sr.recorded_at DESC, sr.id DESC" in query
     assert "LIMIT %s" in query
-    assert params == (
-        "am2305b_001",
-        "am2305b_001",
-        "farm_001",
-        "farm_001",
-        "zone_01",
-        "zone_01",
-        25,
-    )
+    assert params == (["farm_001"], "am2305b_001", "am2305b_001", "farm_001", "farm_001", "zone_01", "zone_01", 25)
 
 
 def test_list_sensor_readings_rejects_invalid_limit():
     import pytest
 
     with pytest.raises(ValueError, match="limit must be between 1 and 500"):
-        persistence.list_sensor_readings(limit=0)
+        persistence.list_sensor_readings(user_id=7, authorized_farm_codes=set(), limit=0)
 
 def test_update_actuator_command_ack_returns_true_when_updated():
     with patch("persistence.db.connect") as connect:
@@ -383,3 +413,75 @@ def test_update_actuator_command_ack_rejects_invalid_result():
 
     assert result is False
     connect.assert_not_called()
+
+
+def test_user_can_access_actuator_returns_true_for_farm_member():
+    fake_connection = MagicMock()
+    fake_cursor = (
+        fake_connection.__enter__.return_value
+        .cursor.return_value.__enter__.return_value
+    )
+    fake_cursor.fetchone.return_value = (True,)
+
+    with patch("persistence.db.connect", return_value=fake_connection):
+        result = persistence.user_can_access_actuator(
+            user_id=7,
+            actuator_id=11,
+        )
+
+    assert result is True
+    fake_cursor.execute.assert_called_once()
+    assert fake_cursor.execute.call_args.args[1] == (11, 7)
+
+
+def test_user_can_access_actuator_returns_false_for_non_member():
+    fake_connection = MagicMock()
+    fake_cursor = (
+        fake_connection.__enter__.return_value
+        .cursor.return_value.__enter__.return_value
+    )
+    fake_cursor.fetchone.return_value = (False,)
+
+    with patch("persistence.db.connect", return_value=fake_connection):
+        result = persistence.user_can_access_actuator(
+            user_id=8,
+            actuator_id=11,
+        )
+
+    assert result is False
+    fake_cursor.execute.assert_called_once()
+    assert fake_cursor.execute.call_args.args[1] == (11, 8)
+
+def test_list_user_farm_codes_returns_membership_farms():
+    with patch("persistence.db.connect") as connect:
+        cursor = (
+            connect.return_value.__enter__.return_value
+            .cursor.return_value.__enter__.return_value
+        )
+        cursor.fetchall.return_value = [
+            ("farm_001",),
+            ("farm_002",),
+        ]
+
+        result = persistence.list_user_farm_codes(7)
+
+    assert result == {"farm_001", "farm_002"}
+    query, params = cursor.execute.call_args.args
+    assert "FROM farm_users AS fu" in query
+    assert "JOIN farms AS f ON f.id = fu.farm_id" in query
+    assert "WHERE fu.user_id = %s" in query
+    assert params == (7,)
+
+
+def test_list_user_farm_codes_returns_empty_set_without_memberships():
+    with patch("persistence.db.connect") as connect:
+        cursor = (
+            connect.return_value.__enter__.return_value
+            .cursor.return_value.__enter__.return_value
+        )
+        cursor.fetchall.return_value = []
+
+        result = persistence.list_user_farm_codes(999)
+
+    assert result == set()
+    assert cursor.execute.call_args.args[1] == (999,)

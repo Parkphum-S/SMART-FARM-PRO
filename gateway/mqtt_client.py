@@ -1,7 +1,13 @@
 import paho.mqtt.client as mqtt
 
 from mqtt_parser import parse_payload
-from mqtt_validator import validate_actuator_ack, validate_actuator_command, validate_payload, validate_sensor_reading
+from mqtt_validator import (
+    validate_actuator_ack,
+    validate_actuator_command,
+    validate_actuator_state,
+    validate_esp32_status,
+    validate_sensor_reading,
+)
 from mqtt_config import (
     MQTT_HOST,
     MQTT_PASSWORD,
@@ -16,6 +22,7 @@ client = mqtt.Client(
 )
 
 client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+
 TOPICS = (
     "farm/farm_001/esp32/+/status",
     "farm/farm_001/zone/+/sensor/+/reading",
@@ -24,27 +31,73 @@ TOPICS = (
     "farm/farm_001/zone/+/actuator/+/command",
 )
 
+
+def _validator_for_topic(topic: str):
+    parts = topic.split("/")
+
+    if (
+        len(parts) == 5
+        and parts[0] == "farm"
+        and parts[1]
+        and parts[2] == "esp32"
+        and parts[3]
+        and parts[4] == "status"
+    ):
+        return validate_esp32_status, "ESP32 status"
+
+    if (
+        len(parts) == 7
+        and parts[0] == "farm"
+        and parts[1]
+        and parts[2] == "zone"
+        and parts[3]
+        and parts[4] == "sensor"
+        and parts[5]
+        and parts[6] == "reading"
+    ):
+        return validate_sensor_reading, "sensor payload"
+
+    if (
+        len(parts) == 7
+        and parts[0] == "farm"
+        and parts[1]
+        and parts[2] == "zone"
+        and parts[3]
+        and parts[4] == "actuator"
+        and parts[5]
+    ):
+        validators = {
+            "state": (validate_actuator_state, "actuator state"),
+            "ack": (validate_actuator_ack, "actuator ack"),
+            "command": (validate_actuator_command, "actuator command"),
+        }
+        return validators.get(parts[6])
+
+    return None
+
+
 def on_message(client, userdata, msg) -> None:
+    validator_entry = _validator_for_topic(msg.topic)
+    if validator_entry is None:
+        print(f"MQTT unsupported topic: topic={msg.topic}")
+        return
+
+    validator, payload_name = validator_entry
     payload = parse_payload(msg.payload)
+
     if payload is None:
         print(f"MQTT invalid JSON: topic={msg.topic}")
         return
-    if "/sensor/" in msg.topic and not validate_sensor_reading(payload):
-        print(f"MQTT invalid sensor payload: topic={msg.topic}")
+
+    if not validator(payload):
+        print(f"MQTT invalid {payload_name}: topic={msg.topic}")
         return
-    if "/actuator/" in msg.topic and "/command" in msg.topic and not validate_actuator_command(payload):
-        print(f"MQTT invalid actuator command: topic={msg.topic}")
-        return
-    if "/actuator/" in msg.topic and "/ack" in msg.topic and not validate_actuator_ack(payload):
-        print(f"MQTT invalid actuator ack: topic={msg.topic}")
-        return
-    if "/sensor/" not in msg.topic and not validate_payload(payload):
-        print(f"MQTT invalid payload: topic={msg.topic}")
-        return
+
     print(f"MQTT message received: topic={msg.topic} payload={payload}")
 
 
 client.on_message = on_message
+
 
 def connect() -> None:
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)

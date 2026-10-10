@@ -50,14 +50,14 @@ Payload:
 
 ## 4. Actuator Command
 
-Gateway/Backend publishes:
+Backend publishes:
 
 farm/{farm_id}/zone/{zone_id}/actuator/{actuator_id}/command
 
 Payload:
 
 {
-  "actuator_id": "pump_001",
+  "actuator_id": "relay_01",
   "command": "on",
   "request_id": "req-001",
   "timestamp": "2026-10-08T00:00:00Z"
@@ -105,7 +105,7 @@ Gateway:
 - Subscribe to actuator commands.
 - Receive sensor readings.
 - Receive ESP32 status.
-- Publish actuator commands when instructed by Backend.
+- Validate and log received messages; the current implementation does not forward commands.
 - Do not access topics outside its assigned farm/zone scope.
 - Use MQTT authentication credentials from environment variables.
 
@@ -114,13 +114,10 @@ Gateway:
 ## 8. Backend Responsibilities
 
 Backend:
-
-- May read and write Smart Farm MQTT topics.
-- Provides application/business logic.
-- Sends actuator commands through MQTT.
-- Processes sensor readings and device status.
-
----
+- Publishes actuator commands directly to MQTT.
+- Processes sensor readings, device status, actuator state, and acknowledgements.
+- Checks user permissions and farm membership before actuator control.
+- Persists actuator commands before publishing them.
 
 ## 9. Timestamp
 
@@ -147,3 +144,9 @@ The same `request_id` must be returned in the corresponding acknowledgement.
 - Do not place secrets in MQTT topics.
 - Device IDs and zone IDs must be stable identifiers.
 - Payloads are JSON encoded using UTF-8.
+
+## 12. Verification boundary
+
+Passing unit tests does not prove end-to-end MQTT delivery or database readback.
+Verify ESP32 publishing, MQTT delivery, Backend persistence, API readback, and
+command acknowledgement separately before declaring integration complete.

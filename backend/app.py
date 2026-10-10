@@ -1,7 +1,9 @@
+from typing import Literal
+from datetime import datetime
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 import dependencies
 import mqtt_client
@@ -57,40 +59,88 @@ def health():
 
 
 class ActuatorCommand(BaseModel):
-    command: str
-    request_id: str
-    timestamp: str
+    command: Literal["on", "off"]
+    request_id: str = Field(min_length=1, max_length=128)
+    timestamp: datetime
+
+    @field_validator("request_id")
+    @classmethod
+    def validate_request_id(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("request_id must not be blank")
+        return value
+
+    @field_validator("timestamp")
+    @classmethod
+    def validate_timestamp_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("timestamp must include a timezone")
+        return value
 
 
-@app.post("/api/v1/actuators/{actuator_id}/command")
+@app.post(
+    "/api/v1/farms/{farm_code}/zones/{zone_code}/actuators/{actuator_id}/command"
+)
 def send_actuator_command(
+    farm_code: str,
+    zone_code: str,
     actuator_id: str,
     body: ActuatorCommand,
-    _: dict[str, object] = Depends(
-        dependencies.require_permission("actuator.control")
+    current_user: dict[str, object] = Depends(
+        dependencies.require_farm_permission("actuator.control")
     ),
 ):
-    topic = f"farm/farm_001/zone/zone_01/actuator/{actuator_id}/command"
+    topic = (
+        f"farm/{farm_code}/zone/{zone_code}/"
+        f"actuator/{actuator_id}/command"
+    )
+    timestamp = body.timestamp.isoformat()
+    if timestamp.endswith("+00:00"):
+        timestamp = timestamp[:-6] + "Z"
+
     payload = {
         "actuator_id": actuator_id,
         "command": body.command,
         "request_id": body.request_id,
-        "timestamp": body.timestamp,
+        "timestamp": timestamp,
     }
-    resolved_actuator_id = persistence.resolve_actuator_id(
-        "farm_001",
-        "zone_01",
-        actuator_id,
-    )
+
+    try:
+        resolved_actuator_id = persistence.resolve_actuator_id(
+            farm_code,
+            zone_code,
+            actuator_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Actuator authorization service unavailable",
+        ) from exc
+
     if resolved_actuator_id is None:
         raise HTTPException(status_code=404, detail="Actuator not found")
+
+    try:
+        can_access = persistence.user_can_access_actuator(
+            user_id=int(current_user["id"]),
+            actuator_id=resolved_actuator_id,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Actuator authorization service unavailable",
+        ) from exc
+
+    if not can_access:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     try:
         persistence.insert_actuator_command(
             actuator_id=resolved_actuator_id,
             command=body.command,
             request_id=body.request_id,
-            requested_at=body.timestamp,
+            requested_at=timestamp,
             raw_payload=payload,
         )
     except Exception as exc:
@@ -109,50 +159,90 @@ def send_actuator_command(
 
     return {"status": "accepted", "request_id": body.request_id}
 
+def _get_user_farm_state(
+    current_user: dict[str, object],
+    state: dict[str, dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    """Return only state explicitly tagged with a farm the user can access."""
+    try:
+        allowed_farms = persistence.list_user_farm_codes(
+            int(current_user["id"])
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Farm authorization service unavailable",
+        ) from exc
+
+    return {
+        key: payload
+        for key, payload in state.items()
+        if isinstance(payload.get("farm_code"), str)
+        and payload["farm_code"] in allowed_farms
+    }
+
 
 @app.get("/api/v1/esp32/status")
 def get_esp32_status(
-    _: dict[str, object] = Depends(
+    current_user: dict[str, object] = Depends(
         dependencies.require_permission("device.view")
     ),
 ):
-    return {"data": state_store.get_esp32_status()}
+    return {
+        "data": _get_user_farm_state(
+            current_user,
+            state_store.get_esp32_status(),
+        )
+    }
 
 
 @app.get("/api/v1/sensors/readings")
 def get_sensor_readings(
-    _: dict[str, object] = Depends(
+    current_user: dict[str, object] = Depends(
         dependencies.require_permission("sensor.view")
     ),
 ):
-    return {"data": state_store.get_sensor_readings()}
+    return {
+        "data": _get_user_farm_state(
+            current_user,
+            state_store.get_sensor_readings(),
+        )
+    }
 
 
 @app.get("/api/v1/sensors/readings/history")
 def get_sensor_reading_history(
-    _: dict[str, object] = Depends(
-        dependencies.require_permission("sensor.history")
-    ),
+    current_user: dict[str, object] = Depends(dependencies.get_current_user),
     limit: int = Query(default=100, ge=1, le=500),
     sensor_code: str | None = None,
     farm_code: str | None = None,
     zone_code: str | None = None,
 ):
-    """Return persisted sensor history, newest first."""
-    return {
-        "data": persistence.list_sensor_readings(
-            limit=limit,
-            sensor_code=sensor_code,
-            farm_code=farm_code,
-            zone_code=zone_code,
+    """Return persisted sensor history for farms the user may access."""
+    try:
+        authorized_farm_codes = persistence.list_user_farm_codes_with_permission(
+            user_id=int(current_user["id"]), permission="sensor.history"
         )
-    }
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Farm authorization service unavailable") from exc
 
+    if not authorized_farm_codes or (farm_code is not None and farm_code not in authorized_farm_codes):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return {"data": persistence.list_sensor_readings(
+        user_id=int(current_user["id"]), authorized_farm_codes=authorized_farm_codes,
+        limit=limit, sensor_code=sensor_code, farm_code=farm_code, zone_code=zone_code,
+    )}
 
 @app.get("/api/v1/actuators/states")
 def get_actuator_states(
-    _: dict[str, object] = Depends(
+    current_user: dict[str, object] = Depends(
         dependencies.require_permission("actuator.view")
     ),
 ):
-    return {"data": state_store.get_actuator_states()}
+    return {
+        "data": _get_user_farm_state(
+            current_user,
+            state_store.get_actuator_states(),
+        )
+    }

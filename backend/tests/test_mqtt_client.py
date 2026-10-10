@@ -26,7 +26,7 @@ def test_publish_serializes_payload_and_publishes():
 def test_on_message_updates_state_store():
     mqtt_client.state_store = MagicMock()
     mqtt_client.persistence = MagicMock()
-    mqtt_client.persistence.resolve_device_id.return_value = None
+    mqtt_client.persistence.resolve_device_id.return_value = 7
 
     messages = [
         MagicMock(topic="farm/farm_001/esp32/esp32_001/status", payload=b"{\"device_id\":\"esp32_001\",\"status\":\"online\",\"timestamp\":\"2026-10-08T00:00:00Z\"}"),
@@ -37,9 +37,9 @@ def test_on_message_updates_state_store():
     for message in messages:
         mqtt_client.on_message(mqtt_client.client, None, message)
 
-    mqtt_client.state_store.set_esp32_status.assert_called_once_with("esp32_001", {"device_id": "esp32_001", "status": "online", "timestamp": "2026-10-08T00:00:00Z"})
-    mqtt_client.state_store.set_sensor_reading.assert_called_once_with("dht11_001", {"sensor_id": "dht11_001", "type": "temperature_humidity", "temperature_c": 28.5, "humidity_pct": 72.0, "timestamp": "2026-10-08T00:00:00Z"})
-    mqtt_client.state_store.set_actuator_state.assert_called_once_with("pump_001", {"actuator_id": "pump_001", "state": "on", "timestamp": "2026-10-08T00:00:00Z"})
+    mqtt_client.state_store.set_esp32_status.assert_called_once_with("esp32_001", {"device_id": "esp32_001", "status": "online", "timestamp": "2026-10-08T00:00:00Z", "farm_code": "farm_001"})
+    mqtt_client.state_store.set_sensor_reading.assert_called_once_with("dht11_001", {"sensor_id": "dht11_001", "type": "temperature_humidity", "temperature_c": 28.5, "humidity_pct": 72.0, "timestamp": "2026-10-08T00:00:00Z", "farm_code": "farm_001", "zone_code": "zone_01"})
+    mqtt_client.state_store.set_actuator_state.assert_called_once_with("pump_001", {"actuator_id": "pump_001", "state": "on", "timestamp": "2026-10-08T00:00:00Z", "farm_code": "farm_001", "zone_code": "zone_01"})
 
 def test_on_sensor_message_persists_to_database_and_updates_state_store():
     mqtt_client.state_store = MagicMock()
@@ -80,6 +80,8 @@ def test_on_sensor_message_persists_to_database_and_updates_state_store():
             "temperature_c": 28.5,
             "humidity_pct": 72.0,
             "timestamp": "2026-10-08T00:00:00Z",
+            "farm_code": "farm_001",
+            "zone_code": "zone_01",
         },
     )
 
@@ -102,7 +104,7 @@ def test_on_sensor_message_skips_database_when_sensor_cannot_be_resolved():
         "missing_sensor",
     )
     mqtt_client.persistence.insert_sensor_reading.assert_not_called()
-    mqtt_client.state_store.set_sensor_reading.assert_called_once()
+    mqtt_client.state_store.set_sensor_reading.assert_not_called()
 
 
 def test_on_device_status_persists_to_database_and_updates_state_store():
@@ -132,6 +134,7 @@ def test_on_device_status_persists_to_database_and_updates_state_store():
             "device_id": "esp32_001",
             "status": "online",
             "timestamp": "2026-10-08T00:00:00Z",
+            "farm_code": "farm_001",
         },
     )
 
@@ -168,6 +171,8 @@ def test_on_actuator_state_persists_to_database_and_updates_state_store():
             "actuator_id": "pump_001",
             "state": "on",
             "timestamp": "2026-10-08T00:00:00Z",
+            "farm_code": "farm_001",
+            "zone_code": "zone_01",
         },
     )
 
@@ -190,14 +195,7 @@ def test_on_actuator_state_skips_database_when_actuator_cannot_be_resolved():
         "missing_actuator",
     )
     mqtt_client.persistence.insert_actuator_state.assert_not_called()
-    mqtt_client.state_store.set_actuator_state.assert_called_once_with(
-        "missing_actuator",
-        {
-            "actuator_id": "missing_actuator",
-            "state": "off",
-            "timestamp": "2026-10-08T00:00:00Z",
-        },
-    )
+    mqtt_client.state_store.set_actuator_state.assert_not_called()
 
 
 
@@ -229,7 +227,7 @@ def test_on_soil_sensor_message_persists_soil_moisture_value():
         value=64.5,
         raw_payload=payload,
     )
-    mqtt_client.state_store.set_sensor_reading.assert_called_once_with("am2305b_001", payload)
+    mqtt_client.state_store.set_sensor_reading.assert_called_once_with("am2305b_001", {**payload, "farm_code": "farm_001", "zone_code": "zone_01"})
 
 def test_on_actuator_ack_persists_matching_command():
     mqtt_client.state_store = MagicMock()

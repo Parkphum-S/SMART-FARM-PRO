@@ -19,64 +19,92 @@ def on_message(client, userdata, msg) -> None:
         payload = json.loads(msg.payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         return
+
+    if not isinstance(payload, dict):
+        return
+
     parts = msg.topic.split("/")
-    if len(parts) == 5 and parts[2] == "esp32" and parts[4] == "status":
-        device_id = payload.get("device_id") or payload.get("esp32_id")
-        if device_id:
-            farm_code = parts[1]
-            resolved_device_id = persistence.resolve_device_id(
-                farm_code,
-                device_id,
-            )
-            if resolved_device_id is not None:
-                persistence.update_device_status(
-                    device_id=resolved_device_id,
-                    status=payload.get("status", "unknown"),
-                    last_seen_at=payload.get("timestamp"),
-                )
-            state_store.set_esp32_status(device_id, payload)
-    elif len(parts) == 7 and parts[2] == "zone" and parts[4] == "sensor" and parts[6] == "reading":
-        sensor_id = payload.get("sensor_id")
-        if sensor_id:
-            farm_code = parts[1]
-            zone_code = parts[3]
-            resolved_sensor_id = persistence.resolve_sensor_id(
-                farm_code,
-                zone_code,
-                sensor_id,
-            )
 
-            if resolved_sensor_id is not None:
-                # Keep temperature and humidity in their dedicated columns.
-                # Soil moisture uses the generic numeric value column while the
-                # complete payload remains available in raw_payload.
-                sensor_value = payload.get("soil_moisture_pct", payload.get("value"))
-                persistence.insert_sensor_reading(
-                    sensor_id=resolved_sensor_id,
-                    recorded_at=payload.get("timestamp"),
-                    temperature_c=payload.get("temperature_c"),
-                    humidity_pct=payload.get("humidity_pct"),
-                    value=sensor_value,
-                    raw_payload=payload,
-                )
+    if len(parts) == 5 and parts[0] == "farm" and parts[2] == "esp32" and parts[4] == "status":
+        topic_device_code = parts[3]
+        device_code = payload.get("device_id") or payload.get("esp32_id")
+        if device_code != topic_device_code:
+            return
 
-            state_store.set_sensor_reading(sensor_id, payload)
+        farm_code = parts[1]
+        resolved_device_id = persistence.resolve_device_id(
+            farm_code,
+            device_code,
+        )
+        if resolved_device_id is None:
+            return
+
+        persistence.update_device_status(
+            device_id=resolved_device_id,
+            status=payload.get("status", "unknown"),
+            last_seen_at=payload.get("timestamp"),
+        )
+        state_store.set_esp32_status(
+            device_code,
+            {**payload, "farm_code": farm_code},
+        )
+
     elif (
         len(parts) == 7
+        and parts[0] == "farm"
+        and parts[2] == "zone"
+        and parts[4] == "sensor"
+        and parts[6] == "reading"
+    ):
+        farm_code = parts[1]
+        zone_code = parts[3]
+        topic_sensor_code = parts[5]
+        sensor_code = payload.get("sensor_id")
+        if sensor_code != topic_sensor_code:
+            return
+
+        resolved_sensor_id = persistence.resolve_sensor_id(
+            farm_code,
+            zone_code,
+            sensor_code,
+        )
+        if resolved_sensor_id is None:
+            return
+
+        sensor_value = payload.get(
+            "soil_moisture_pct",
+            payload.get("value"),
+        )
+        persistence.insert_sensor_reading(
+            sensor_id=resolved_sensor_id,
+            recorded_at=payload.get("timestamp"),
+            temperature_c=payload.get("temperature_c"),
+            humidity_pct=payload.get("humidity_pct"),
+            value=sensor_value,
+            raw_payload=payload,
+        )
+        state_store.set_sensor_reading(
+            sensor_code,
+            {**payload, "farm_code": farm_code, "zone_code": zone_code},
+        )
+
+    elif (
+        len(parts) == 7
+        and parts[0] == "farm"
         and parts[2] == "zone"
         and parts[4] == "actuator"
         and parts[6] == "ack"
-        and isinstance(payload, dict)
     ):
         topic_actuator_code = parts[5]
-        payload_actuator_code = payload.get("actuator_id")
+        if payload.get("actuator_id") != topic_actuator_code:
+            return
+
         request_id = payload.get("request_id")
         result = payload.get("result")
         acknowledged_at = payload.get("timestamp")
 
         if (
-            payload_actuator_code != topic_actuator_code
-            or not isinstance(request_id, str)
+            not isinstance(request_id, str)
             or not request_id.strip()
             or result not in {"accepted", "rejected"}
             or not isinstance(acknowledged_at, str)
@@ -96,26 +124,39 @@ def on_message(client, userdata, msg) -> None:
                 result=result,
                 acknowledged_at=acknowledged_at,
             )
-    elif len(parts) == 7 and parts[2] == "zone" and parts[4] == "actuator" and parts[6] == "state":
-        actuator_id = payload.get("actuator_id")
-        if actuator_id:
-            farm_code = parts[1]
-            zone_code = parts[3]
-            resolved_actuator_id = persistence.resolve_actuator_id(
-                farm_code,
-                zone_code,
-                actuator_id,
-            )
 
-            if resolved_actuator_id is not None:
-                persistence.insert_actuator_state(
-                    actuator_id=resolved_actuator_id,
-                    state=payload.get("state", "unknown"),
-                    recorded_at=payload.get("timestamp"),
-                    raw_payload=payload,
-                )
+    elif (
+        len(parts) == 7
+        and parts[0] == "farm"
+        and parts[2] == "zone"
+        and parts[4] == "actuator"
+        and parts[6] == "state"
+    ):
+        farm_code = parts[1]
+        zone_code = parts[3]
+        topic_actuator_code = parts[5]
+        actuator_code = payload.get("actuator_id")
+        if actuator_code != topic_actuator_code:
+            return
 
-            state_store.set_actuator_state(actuator_id, payload)
+        resolved_actuator_id = persistence.resolve_actuator_id(
+            farm_code,
+            zone_code,
+            actuator_code,
+        )
+        if resolved_actuator_id is None:
+            return
+
+        persistence.insert_actuator_state(
+            actuator_id=resolved_actuator_id,
+            state=payload.get("state", "unknown"),
+            recorded_at=payload.get("timestamp"),
+            raw_payload=payload,
+        )
+        state_store.set_actuator_state(
+            actuator_code,
+            {**payload, "farm_code": farm_code, "zone_code": zone_code},
+        )
 
 
 client.on_message = on_message
