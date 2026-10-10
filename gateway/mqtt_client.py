@@ -1,14 +1,14 @@
 import paho.mqtt.client as mqtt
 
-from mqtt_parser import parse_payload
-from mqtt_validator import (
+from .mqtt_parser import parse_payload
+from .mqtt_validator import (
     validate_actuator_ack,
     validate_actuator_command,
     validate_actuator_state,
     validate_esp32_status,
     validate_sensor_reading,
 )
-from mqtt_config import (
+from .mqtt_config import (
     MQTT_HOST,
     MQTT_PASSWORD,
     MQTT_PORT,

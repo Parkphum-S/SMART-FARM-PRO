@@ -4,7 +4,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from types import SimpleNamespace
 
-import mqtt_client
+from gateway import mqtt_client
 
 
 class TestGatewayMqttClient(unittest.TestCase):

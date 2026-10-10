@@ -1,6 +1,6 @@
 import unittest
 
-from mqtt_validator import validate_actuator_ack, validate_actuator_command, validate_actuator_state, validate_esp32_status, validate_sensor_reading
+from gateway.mqtt_validator import validate_actuator_ack, validate_actuator_command, validate_actuator_state, validate_esp32_status, validate_sensor_reading
 
 
 class TestSensorReadingValidation(unittest.TestCase):

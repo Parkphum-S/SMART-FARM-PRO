@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-import mqtt_client
+from . import mqtt_client
 
 
 @asynccontextmanager
