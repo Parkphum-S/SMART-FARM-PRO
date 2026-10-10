@@ -107,9 +107,9 @@ def test_get_latest_farm_data():
                 "sensor.history",
             },
         ), patch(
-            "app.persistence.list_user_farm_codes",
-            return_value={"farm_001"},
-        ), patch(
+            "app.persistence.list_user_farm_codes_with_permission",
+            side_effect=lambda user_id, permission: {"farm_001"},
+        ) as farm_permissions, patch(
             "app.state_store.get_esp32_status",
             return_value={
                 "esp32_001": {
@@ -152,6 +152,15 @@ def test_get_latest_farm_data():
             esp32_response = client.get("/api/v1/esp32/status")
             sensor_response = client.get("/api/v1/sensors/readings")
             actuator_response = client.get("/api/v1/actuators/states")
+
+        assert [
+            (call.kwargs["user_id"], call.kwargs["permission"])
+            for call in farm_permissions.call_args_list
+        ] == [
+            (7, "device.view"),
+            (7, "sensor.view"),
+            (7, "actuator.view"),
+        ]
 
         assert esp32_response.status_code == 200
         assert esp32_response.json()["data"] == {
@@ -686,7 +695,7 @@ def test_live_state_fails_closed_when_farm_authorization_unavailable(endpoint):
                 "actuator.view",
             },
         ), patch(
-            "app.persistence.list_user_farm_codes",
+            "app.persistence.list_user_farm_codes_with_permission",
             side_effect=RuntimeError("database unavailable"),
         ), TestClient(app) as client:
             response = client.get(endpoint)

@@ -162,17 +162,25 @@ def send_actuator_command(
 def _get_user_farm_state(
     current_user: dict[str, object],
     state: dict[str, dict[str, object]],
+    permission: str,
 ) -> dict[str, dict[str, object]]:
-    """Return only state explicitly tagged with a farm the user can access."""
+    """Return only state from farms where the user has the required permission."""
     try:
-        allowed_farms = persistence.list_user_farm_codes(
-            int(current_user["id"])
+        allowed_farms = persistence.list_user_farm_codes_with_permission(
+            user_id=int(current_user["id"]),
+            permission=permission,
         )
     except Exception as exc:
         raise HTTPException(
             status_code=503,
             detail="Farm authorization service unavailable",
         ) from exc
+
+    if not allowed_farms:
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden",
+        )
 
     return {
         key: payload
@@ -181,17 +189,17 @@ def _get_user_farm_state(
         and payload["farm_code"] in allowed_farms
     }
 
-
 @app.get("/api/v1/esp32/status")
 def get_esp32_status(
     current_user: dict[str, object] = Depends(
-        dependencies.require_permission("device.view")
+        dependencies.get_current_user
     ),
 ):
     return {
         "data": _get_user_farm_state(
             current_user,
             state_store.get_esp32_status(),
+            "device.view",
         )
     }
 
@@ -199,13 +207,14 @@ def get_esp32_status(
 @app.get("/api/v1/sensors/readings")
 def get_sensor_readings(
     current_user: dict[str, object] = Depends(
-        dependencies.require_permission("sensor.view")
+        dependencies.get_current_user
     ),
 ):
     return {
         "data": _get_user_farm_state(
             current_user,
             state_store.get_sensor_readings(),
+            "sensor.view",
         )
     }
 
@@ -237,12 +246,13 @@ def get_sensor_reading_history(
 @app.get("/api/v1/actuators/states")
 def get_actuator_states(
     current_user: dict[str, object] = Depends(
-        dependencies.require_permission("actuator.view")
+        dependencies.get_current_user
     ),
 ):
     return {
         "data": _get_user_farm_state(
             current_user,
             state_store.get_actuator_states(),
+            "actuator.view",
         )
     }
