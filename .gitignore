@@ -28,3 +28,11 @@ Thumbs.db
 # Local IDE settings
 .vscode/
 .idea/
+
+# Python runtime artifacts
+__pycache__/
+*.py[cod]
+
+# Local backup copies
+*.bak
+*.bak.*
